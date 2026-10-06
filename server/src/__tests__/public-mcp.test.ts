@@ -780,6 +780,33 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     } finally { await f.cleanup(); }
   });
 
+  it("completes OAuth and concurrent upload retries with a one-connection pool", async () => {
+    const originalDb = db, originalOauth = oauth;
+    db = createDb(temp.connectionString, { maxConnections: 1 });
+    oauth = createPublicMcpOAuth(db, config);
+    let cleanup: (() => Promise<void>) | undefined;
+    try {
+      // Fixture approval and PKCE redemption must also stay on their transaction.
+      const f = await expandedFixture(); cleanup = f.cleanup;
+      await oauth.token({ grant_type: "refresh_token", client_id: f.client.client_id,
+        resource: config.resource, refresh_token: f.tokens.refresh_token });
+      const device = await deviceFixture();
+      await oauth.consentDevice(device.codes.user_code, device.actor, { decision: "approve", companyId: device.company.id, allowWrites: true });
+      await oauth.token(device.deviceExchange);
+      const bytes = Buffer.from("one connection upload");
+      const args = { taskId: f.issue.id, filename: "single.txt", contentType: "text/plain", byteSize: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex") };
+      const links = [];
+      for (let i = 0; i < 3; i++) links.push(new URL((await f.call("paperclip_get_upload_url", { ...args, requestId: randomUUID() })).url as string));
+      const app = express(); app.use(f.transfers.router);
+      const results = await Promise.all(links.flatMap(url => Array.from({ length: 2 }, () =>
+        request(app).put(url.pathname + url.search).set("Content-Type", args.contentType).send(bytes).timeout(5000))));
+      expect(results.map(result => result.status)).toEqual(Array(6).fill(200));
+      expect(new Set(results.map(result => result.body.attachment.id)).size).toBe(3);
+      expect((await f.call("paperclip_list_deliverables", { taskId: f.issue.id })).attachments).toHaveLength(3);
+    } finally { db = originalDb; oauth = originalOauth; await cleanup?.(); }
+  }, 15000);
+
   it("automatically finalizes binary uploads once, survives lost responses, and enforces live revocation", async () => {
     const f = await expandedFixture();
     try {

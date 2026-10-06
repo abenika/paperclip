@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { redactTransferEvidence } from "./public-mcp-transfer-evidence.js";
 import { assertSecretFree } from "./redaction.js";
-import { hasRequestedTaskEditSequence, runExpandedMcpScenario } from "./public-mcp-expanded-flow.js";
+import { hasReadLaterDocument, hasRequestedTaskEditSequence, runExpandedMcpScenario } from "./public-mcp-expanded-flow.js";
 import { origin } from "./public-mcp-client.js";
 import { isReadOnlyMcpCall } from "./public-mcp-grading.js";
 import type { RunnerApi } from "./api.js";
@@ -42,7 +42,7 @@ describe("expanded MCP independent evidence calibration", () => {
             for (const direction of ["upload", "download"]) await host.call("host_transfer_file", { direction, url: `${origin}/mcp/files/${direction}?ticket=fixture` });
           }
           // A plausible assistant success claim alone cannot make the fixture pass.
-          return { prompt, final: `Done GARDEN DOCUMENT${nonce}; configuration permission required`, calls: ["paperclip_search_api", "paperclip_call_api"].map(name => ({ name, arguments: {}, result: {} })) };
+          return { prompt, final: `Done GARDEN DOCUMENT${nonce}; configuration permission required`, calls: name === "documents" ? (valid ? [{ name: "paperclip_read_document", arguments: { companyId, taskId, key: "report" }, result: { structuredContent: { document: { key: "report", body: `GARDEN DOCUMENT${nonce}` } } } }] : []) : ["paperclip_search_api", "paperclip_call_api"].map(name => ({ name, arguments: {}, result: {} })) };
         },
       });
       expect(checks.length).toBeGreaterThan(0);
@@ -90,4 +90,18 @@ it("rejects wrong blocker ownership, action, actor and out-of-order completion",
     const history = taskHistory("n"); mutate(history);
     expect(hasRequestedTaskEditSequence(history, "n")).toBe(false);
   }
+});
+
+it("requires a real later report read and rejects writes, errors, wrong targets and missing references", () => {
+  const read = { name: "paperclip_read_document", arguments: { companyId: "c", taskId: "t", key: "report" },
+    result: { structuredContent: { document: { key: "report", body: "GARDEN DOCUMENT" } } } };
+  const grade = (calls: any[]) => hasReadLaterDocument({ prompt: "Read", final: "GARDEN DOCUMENT", calls }, "c", "t", "GARDEN", "DOCUMENT");
+  expect(grade([read])).toBe(true);
+  expect(grade([{ name: "paperclip_call_api", arguments: { companyId: "c", operationId: read.name, arguments: read.arguments }, result: read.result }])).toBe(true);
+  for (const calls of [[], [{ ...read, arguments: { ...read.arguments, companyId: "foreign" } }],
+    [{ ...read, arguments: { ...read.arguments, taskId: "other" } }], [{ ...read, result: { ...read.result, isError: true } }],
+    [{ ...read, result: { structuredContent: { document: { key: "report", body: "GARDEN" } } } }],
+    [read, { name: "paperclip_write_document", arguments: {}, result: {} }],
+    [read, { name: "paperclip_call_api", arguments: { operationId: "paperclip_update_task" }, result: {} }],
+  ]) expect(grade(calls)).toBe(false);
 });

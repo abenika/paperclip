@@ -6,6 +6,7 @@ import { type Db, mcpAttachmentUploads, mcpFileTickets, mcpOauthGrants, issues }
 import { z } from "zod";
 import { MAX_ATTACHMENT_BYTES, isAllowedContentType } from "../../attachment-types.js";
 import type { StorageService } from "../../storage/types.js";
+import { authorizationService } from "../authorization.js";
 import { issueService } from "../issues.js";
 import { logActivity } from "../activity-log.js";
 import { hashMcpSecret, type PublicMcpOAuth, type McpPrincipal } from "./oauth.js";
@@ -26,8 +27,22 @@ function requireWrite(p: McpPrincipal) {
 
 export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: ApiDispatch, storage: StorageService) {
   const svc = issueService(db);
-  async function taskAccess(p: McpPrincipal, taskId: string, write = false) {
-    const issue = object(await api(p, "GET", `/issues/${taskId}`));
+  async function taskAccess(p: McpPrincipal, taskId: string, write = false, queryDb?: Db) {
+    // The public route uses the same domain decision. Inside the upload lock,
+    // use its transaction: dispatching through the outer router would borrow a
+    // second pool connection and deadlock when all connections hold uploads.
+    const issue = queryDb
+      ? (await queryDb.select().from(issues).where(and(eq(issues.id, taskId), eq(issues.companyId, p.grant.companyId))))[0]
+      : object(await api(p, "GET", `/issues/${taskId}`));
+    if (!issue) throw unavailable();
+    if (queryDb) {
+      const scope = { issueId: String(issue.id), projectId: issue.projectId as string | null,
+        parentIssueId: issue.parentId as string | null, assigneeAgentId: issue.assigneeAgentId as string | null,
+        assigneeUserId: issue.assigneeUserId as string | null };
+      const decision = await authorizationService(queryDb).decide({ actor: p.actor, action: "issue:read",
+        resource: { type: "issue", companyId: p.grant.companyId, ...scope, status: String(issue.status) }, scope });
+      if (!decision.allowed) throw unavailable();
+    }
     if (issue.companyId !== p.grant.companyId) throw unavailable();
     if (write) {
       requireWrite(p);
@@ -35,10 +50,10 @@ export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: Api
     }
     return issue;
   }
-  async function attachmentAccess(p: McpPrincipal, id: string) {
-    const attachment = await svc.getAttachmentById(id);
+  async function attachmentAccess(p: McpPrincipal, id: string, queryDb?: Db) {
+    const attachment = await (queryDb ? issueService(queryDb) : svc).getAttachmentById(id);
     if (!attachment || attachment.companyId !== p.grant.companyId) throw unavailable();
-    await taskAccess(p, attachment.issueId);
+    await taskAccess(p, attachment.issueId, false, queryDb);
     return attachment;
   }
   async function sweep() {
@@ -89,15 +104,15 @@ export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: Api
       const [upload] = await tx.select().from(mcpAttachmentUploads).where(eq(mcpAttachmentUploads.id, row.uploadId!)).for("update");
       if (!upload || upload.companyId !== principal.grant.companyId || upload.userId !== principal.grant.userId || upload.storageProvider !== storage.provider) throw unavailable();
       if (upload.sha256 !== digest || upload.byteSize !== bytes.length || req.get("Content-Type")?.split(";")[0]?.trim().toLowerCase() !== upload.contentType) throw new McpCapabilityError("Upload bytes, size or Content-Type do not match the requested file.");
-      await taskAccess(principal, upload.taskId, true);
-      if (upload.attachmentId) return attachmentAccess(principal, upload.attachmentId);
+      await taskAccess(principal, upload.taskId, true, tx as unknown as Db);
+      if (upload.attachmentId) return attachmentAccess(principal, upload.attachmentId, tx as unknown as Db);
       const stored = await storage.putFile({ companyId: upload.companyId, namespace: "mcp-transfers", objectKey: upload.objectKey, originalFilename: upload.originalFilename, contentType: upload.contentType, body: bytes });
       // Recheck after receiving/storing bytes. Lock the grant against concurrent revocation.
       const [grant] = await tx.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, row.grantId)).for("update");
       if (!grant || grant.revokedAt || row.expiresAt <= new Date()) throw unavailable();
-      const current = await oauth.authorizeGrant(row.grantId);
+      const current = await oauth.authorizeGrant(row.grantId, tx as unknown as Db);
       requireWrite(current);
-      await taskAccess(current, upload.taskId, true);
+      await taskAccess(current, upload.taskId, true, tx as unknown as Db);
       const [issue] = await tx.select().from(issues).where(and(eq(issues.id, upload.taskId), eq(issues.companyId, upload.companyId))).for("update");
       if (!issue || (issue.conversationAgentId && issue.conversationUserId !== current.grant.userId)) throw unavailable();
       const result = await issueService(tx as unknown as Db).createAttachment({ issueId: upload.taskId, ...stored, createdByUserId: current.grant.userId });

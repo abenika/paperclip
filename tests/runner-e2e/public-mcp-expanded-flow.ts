@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { AssistantTool, AssistantTurn } from "./public-mcp-model.js";
 import type { RunnerApi } from "./api.js";
+import { isReadOnlyMcpCall } from "./public-mcp-grading.js";
 import { origin } from "./public-mcp-client.js";
 
 /** Independent public-API/file oracles; the model never grades its own changes. */
@@ -28,7 +29,7 @@ export async function runExpandedMcpScenario(input: {
     const document = await api.get<any>(taskPath + "/documents/report");
     match("document-written", document.body.includes(`DOCUMENT${nonce}`) && document.body.includes(marker));
     const later = await converse(`This is a later conversation. Retrieve the report for "${title}" and quote both its original garden reference and its DOCUMENT reference. Do not write anything.`);
-    match("later-document-retrieval", later.final.includes(marker) && later.final.includes(`DOCUMENT${nonce}`));
+    match("later-document-retrieval", hasReadLaterDocument(later, companyId, taskId, marker, `DOCUMENT${nonce}`));
     const revisions = await api.get<any[]>(taskPath + "/documents/report/revisions");
     match("document-history", revisions.length >= 2);
   } else if (input.id === "expanded-files") {
@@ -108,4 +109,20 @@ export function hasRequestedTaskEditSequence(history: any[], nonce: string): boo
   const edit = changes.find(row => row.details?.description === `Edited ${nonce}` && row.details?.priority === "high");
   return Boolean(edit && new Date(edit.createdAt).getTime() < new Date(blocked.createdAt).getTime()
     && new Date(blocked.createdAt).getTime() < new Date(statusChanges[1].createdAt).getTime());
+}
+
+/** Require successful retrieval in this conversation, not a remembered quotation. */
+export function hasReadLaterDocument(turn: AssistantTurn, companyId: string, taskId: string, ...references: string[]): boolean {
+  if (!references.every(value => value && turn.final.includes(value)) || !turn.calls.every(isReadOnlyMcpCall)) return false;
+  return turn.calls.some(call => {
+    const name = call.name === "paperclip_call_api" ? call.arguments.operationId : call.name;
+    const args = call.name === "paperclip_call_api" ? call.arguments.arguments as Record<string, unknown> | undefined : call.arguments;
+    if (!args || args.companyId !== companyId || args.taskId !== taskId
+      || !["paperclip_read_document", "paperclip_list_deliverables"].includes(String(name))) return false;
+    const result = call.result as { isError?: boolean; structuredContent?: Record<string, unknown> } | null;
+    if (!result || result.isError || !result.structuredContent) return false;
+    const documents = name === "paperclip_list_deliverables" ? result.structuredContent.documents : [result.structuredContent.document];
+    return Array.isArray(documents) && documents.some(doc => doc && doc.key === "report"
+      && typeof doc.body === "string" && references.every(value => doc.body.includes(value)));
+  });
 }

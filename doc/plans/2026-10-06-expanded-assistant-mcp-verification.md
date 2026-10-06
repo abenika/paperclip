@@ -64,3 +64,29 @@ Mainline subsequently added migration 0310. The merge preserves that migration,
 regenerates the combined schema snapshot, and moves the byte-identical, replay-safe
 MCP transfer migration to 0311. Both private-commentary and transfer log redaction
 are retained. Post-merge checks and qualification are recorded in the PR.
+
+### Merged-source repeat and review regressions
+
+The full 24-cell repeat on `e81f114bc6c813e7784cde0d8199538880aebe1f`
+(`local-2026-10-06T21-17-35-704Z`, grader v15) passed 23 cells. Haiku's
+agent-configuration cell timed out during application startup before writing a
+model result. The failed attempt is retained. Known campaign cost was
+$7.56693965, including $5.5999777 estimated assistant cost and $1.96696195
+reported worker cost, plus unpriced worker usage.
+
+The final review found nested pool queries during upload and OAuth transactions.
+Authorization now uses the held transaction, including live settings/membership
+checks and the domain issue-read decision. A real one-connection PostgreSQL test
+exercises PKCE, refresh, device approval/redemption and six concurrent/repeated
+uploads yielding exactly three attachments. The MCP/privacy regressions pass
+139 tests. Later-conversation grading now requires a successful read of the
+expected company/task report containing both references and rejects all writes;
+the grader advances to v16. Its combined calibration suite passes 76 tests.
+Affected paid cases and the startup failure are rerun separately at the final
+source; do not reinterpret the earlier v15 runs as v16 evidence.
+
+Local revocation was also exercised: revoking only the Paperclip CLI device
+grant makes the same stdio bridge reject subsequent MCP initialization. The
+Codex and OpenCode grants stay independent. A Claude diagnostic attempt that
+hallucinated a shell script is retained and is not counted as proof; the
+independent protocol rejection supplies that proof.
