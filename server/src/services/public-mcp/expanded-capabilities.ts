@@ -33,6 +33,22 @@ function agentOutput(value: unknown) {
   const v = object(value);
   return { ...pick(v, agentFields), adapterConfig: pick(v.adapterConfig, ["model", "reasoningEffort"]), runtimeConfig: pick(v.runtimeConfig, ["aiConnection"]) };
 }
+function projectOutput(value: unknown) {
+  const v = object(value);
+  return { ...pick(v, projectOutputFields), repositories: rows(v.workspaces).flatMap(raw => {
+    const workspace = object(raw);
+    if (typeof workspace.repoUrl !== "string") return [];
+    let url: string | null = null;
+    try {
+      const parsed = new URL(workspace.repoUrl);
+      if (["https:", "http:", "ssh:"].includes(parsed.protocol)) {
+        parsed.username = ""; parsed.password = ""; parsed.search = ""; parsed.hash = "";
+        url = parsed.toString();
+      }
+    } catch { /* Do not disclose opaque legacy remote strings or local paths. */ }
+    return [{ id: object(workspace.metadata).githubRepositoryId ?? null, name: workspace.name, url }];
+  }) };
+}
 const skillBase = (a: Record<string, unknown>) => `/companies/${pathId(a.companyId)}/skills`;
 const skillPath = (a: Record<string, unknown>) => `${skillBase(a)}/${pathId(a.skillId)}`;
 const nonempty = <T extends z.ZodObject>(schema: T) => schema.refine(v => Object.keys(v).length > 0, "Supply at least one change");
@@ -110,17 +126,17 @@ export const expandedMcpCapabilities: Capability[] = [
   },
   {
     name: "paperclip_get_project", description: "Read a project's settings and repository references.", schema: z.object(project).strict(),
-    run: async (p, a, api) => ({ project: pick(await api(p, "GET", `/projects/${pathId(a.projectId)}`), projectOutputFields) }),
+    run: async (p, a, api) => ({ project: projectOutput(await api(p, "GET", `/projects/${pathId(a.projectId)}`)) }),
   },
   {
     name: "paperclip_create_project", configure: true, description: "Create a project, optionally selecting repository IDs from paperclip_list_project_repositories. Requires configuration consent. Does not create remote repositories or configure execution commands.",
     schema: z.object({ ...company, requestId, project: createProjectSchema.pick({ ...projectFields, repositoryIds: true }).strict() }).strict(),
-    run: async (p, a, api) => ({ project: pick(await api(p, "POST", `/companies/${pathId(a.companyId)}/projects`, { ...object(a.project), idempotencyKey: `mcp:${p.grant.userId}:${a.requestId}` }), projectOutputFields) }),
+    run: async (p, a, api) => ({ project: projectOutput(await api(p, "POST", `/companies/${pathId(a.companyId)}/projects`, { ...object(a.project), idempotencyKey: `mcp:${p.grant.userId}:${a.requestId}` })) }),
   },
   {
     name: "paperclip_update_project", configure: true, destructive: true, description: "Update a project's name, description, status, lead, goals, target date, icon or color. Requires configuration consent.",
     schema: z.object({ ...project, requestId, changes: nonempty(updateProjectSchema.pick(projectFields).strict()) }).strict(),
-    run: async (p, a, api) => ({ project: pick(await api(p, "PATCH", `/projects/${pathId(a.projectId)}`, a.changes), projectOutputFields) }),
+    run: async (p, a, api) => ({ project: projectOutput(await api(p, "PATCH", `/projects/${pathId(a.projectId)}`, a.changes)) }),
   },
   {
     name: "paperclip_list_project_repositories", description: "List repository choices available to this person and organization before creating a project or changing its repositories.", schema: z.object(company).strict(),
@@ -129,7 +145,7 @@ export const expandedMcpCapabilities: Capability[] = [
   {
     name: "paperclip_set_project_repositories", configure: true, destructive: true, description: "Replace a project's repository selection with IDs from paperclip_list_project_repositories. Requires configuration consent and normal repository access.",
     schema: z.object({ ...project, requestId, repositoryIds: z.array(z.string().regex(/^\d+$/)).max(100) }).strict(),
-    run: async (p, a, api) => ({ project: pick(await api(p, "PUT", `/projects/${pathId(a.projectId)}/repositories`, { repositoryIds: a.repositoryIds }), projectOutputFields) }),
+    run: async (p, a, api) => ({ project: projectOutput(await api(p, "PUT", `/projects/${pathId(a.projectId)}/repositories`, { repositoryIds: a.repositoryIds })) }),
   },
   {
     name: "paperclip_list_skills", description: "List skills visible in the authorized organization.", schema: z.object(company).strict(),

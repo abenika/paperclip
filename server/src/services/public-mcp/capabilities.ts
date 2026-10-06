@@ -118,7 +118,7 @@ export const publicMcpCapabilities: Capability[] = [
     run: async (p, a, api) => ({ comment: pick(await api(p, "POST", `/issues/${pathId(a.taskId)}/comments`, { body: a.body, clientRequestId: a.requestId }), commentFields) }),
   },
   {
-    name: "paperclip_list_deliverables", description: "Retrieve task documents and deliverable references, including completed work from earlier conversations. Open files through their Paperclip task page; this tool does not fetch arbitrary URLs.",
+    name: "paperclip_list_deliverables", description: "Retrieve task documents, uploaded attachments and deliverable references, including completed work from earlier conversations. Download attachments with paperclip_get_download_url or through the task page; this tool does not fetch arbitrary URLs.",
     schema: z.object(task).strict(),
     run: async (p, a, api, origin) => ({
       attachments: rows(await api(p, "GET", `/issues/${pathId(a.taskId)}/attachments`)).map((v) => pick(v, ["id", "issueId", "originalFilename", "contentType", "byteSize", "sha256", "createdAt"])),

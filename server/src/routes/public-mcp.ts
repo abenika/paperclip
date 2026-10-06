@@ -107,8 +107,19 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
         const result = await execute(token!, request.params.name, request.params.arguments ?? {});
         return { isError: result.outcome === "unknown" || result.outcome === "rejected", content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
       } catch (error) {
-        const message = error instanceof z.ZodError ? "Invalid tool arguments."
-          : error instanceof McpApiError || error instanceof McpCapabilityError || error instanceof McpOAuthError ? error.message
+        if (error instanceof z.ZodError) {
+          const issues = error.issues.slice(0, 12).map(issue => ({
+            path: issue.path.slice(0, 8).filter(part => typeof part === "number" || (typeof part === "string" && /^[a-zA-Z][a-zA-Z0-9_]{0,80}$/.test(part))).join("."),
+            code: issue.code,
+            message: issue.code === "invalid_format" && issue.format === "uuid"
+              ? "Use a valid UUID: 8-4-4-4-12 hex digits; the fourth group starts with 8, 9, a or b."
+              : issue.code === "unrecognized_keys" ? "Remove unsupported fields."
+              : "Check this field against the operation's input schema.",
+          }));
+          const result = { outcome: "rejected", phase: "validation", message: "Invalid tool arguments. No action was executed. Correct the indicated fields before trying again.", issues };
+          return { isError: true, content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
+        }
+        const message = error instanceof McpApiError || error instanceof McpCapabilityError || error instanceof McpOAuthError ? error.message
           : "Paperclip could not confirm this operation. Before retrying a write, inspect the task and comments and keep the same requestId.";
         return { isError: true, content: [{ type: "text", text: message }] };
       }

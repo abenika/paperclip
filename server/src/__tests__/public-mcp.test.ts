@@ -817,6 +817,11 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     expect(failed.body.result.isError).toBe(true);
     expect(JSON.stringify(failed.body)).not.toContain("tenant-secret");
     expect(failed.body.result.content[0].text).toContain("could not confirm");
+    dispatch.mockClear();
+    const invalid = await rpc("tools/call", { name: "paperclip_finish_task", arguments: { companyId: f.company.id, taskId: randomUUID(), requestId: "b2c3d4e5-f6a7-48b9-c0d1-e2f3a4b5c6d7" } });
+    expect(invalid.body.result.structuredContent).toMatchObject({ outcome: "rejected", phase: "validation", issues: [{ path: "requestId", code: "invalid_format" }] });
+    expect(invalid.body.result.structuredContent.issues[0].message).toContain("UUID");
+    expect(dispatch).not.toHaveBeenCalled();
     const pending = await oauth.authorize({ client_id: f.client.client_id, redirect_uri: redirectUri, resource: config.resource, response_type: "code", code_challenge: challenge, code_challenge_method: "S256" });
     vi.stubEnv("PAPERCLIP_CLOUD_API_ORIGIN", "https://cloud.example.test");
     try {

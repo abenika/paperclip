@@ -110,6 +110,7 @@ describe("mutation identity oracle", () => {
   const unknown = { ...accepted, result: { isError: true, structuredContent: { outcome: "unknown" } } };
   it("accepts a repaired schema rejection before any execution", () => {
     expect(gradeStableMutationIdentity([invalid, accepted])).toBe(true);
+    expect(gradeStableMutationIdentity([{ ...invalid, result: { isError: true, structuredContent: { outcome: "rejected", phase: "validation" } } }, accepted])).toBe(true);
   });
   it.each([[accepted], [accepted, accepted], [unknown, accepted]].map(calls => ({ calls })))("accepts one submitted mutation identity %#", ({ calls }) => {
     expect(gradeStableMutationIdentity(calls)).toBe(true);

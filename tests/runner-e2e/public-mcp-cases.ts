@@ -8,6 +8,7 @@ export const publicMcpWorkerSkillDigest = createHash("sha256").update(readFileSy
 export const publicMcpExpandedDigest = createHash("sha256").update(readFileSync(new URL("./public-mcp-expanded-flow.ts", import.meta.url))).digest("hex");
 export const publicMcpSetupDigest = createHash("sha256").update(readFileSync(new URL("../../packages/shared/src/mcp-setup.ts", import.meta.url))).digest("hex");
 export const publicMcpWorkerInstructions = [
+  "Use the document key requested by the task in PUT /api/issues/{issueId}/documents/{key}. A report requested under key report goes to /documents/report, not /documents/plan. Read the saved document back and confirm its key before marking the task done.",
   "Construct JSON request bodies with a JSON encoder (Python json.dumps or Node JSON.stringify), save the serialized body in a temporary file, and send it with curl --data-binary @file. Do not interpolate natural-language text into nested shell/JSON quotes.",
   "If shell syntax fails before the HTTP request is sent, repair the syntax within this run. A recoverable local quoting error does not require another heartbeat.",
 ];
