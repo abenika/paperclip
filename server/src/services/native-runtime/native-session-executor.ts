@@ -3,6 +3,7 @@ import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
 import { prepareGrokRunnerCredentials } from "./grok-runner-credentials.js";
 import { copyBackGrokAuth } from "@paperclipai/adapter-grok-local/server";
 
+import { inferOpenAiCompatibleBiller, type AdapterUsageCheckpoint } from "@paperclipai/adapter-utils";
 import { createAgentIdentityRedactor } from "../agent-identity-redaction.js";
 import {
   isSupportedRemoteCodexVersion,
@@ -7261,6 +7262,7 @@ export async function executePaperclipNativeSession(input: {
     collectStopped: () => Promise<void>;
   };
   /** Persist task-level continuity before a durable goal can outlive this run. */
+  onUsage?: (receipt: AdapterUsageCheckpoint) => Promise<void>;
   onGoalCheckpoint?: (snapshot: PersistedNativeSession) => Promise<void>;
   sessionGoalControl?: NativeSessionGoalControl | null;
   resumeSessionGoalHeartbeat?: boolean;
@@ -7272,6 +7274,7 @@ export async function executePaperclipNativeSession(input: {
   /** Private grant materialization; never a user-configured host path. */
   managedAiCredentialHome?: string;
   managedAiCredentialIdentity?: string;
+  billingIdentity?: Pick<AdapterExecutionResult, "provider" | "biller" | "billingType">;
   runnerExecutionTarget?: AdapterExecutionTarget | null;
   /** Resolved per-run authorization; not an independent instance setting. */
   runnerIngressAuthorized?: boolean;
@@ -7853,6 +7856,54 @@ async function executePaperclipNativeSessionWithinScope(
     binding: { ...input.execution.binding, normalizedSessionId: nativeSessionKey(input.execution), runnerSourceInstanceId: effectiveRunnerInstanceId },
     resolve: resolveNativeRuntimeRequest,
   });
+  let observedAccountingUsage: Record<string, unknown> | null = null;
+  let observedAccountingTurn: string | undefined;
+  let nativeAccountingComplete = false;
+  const persistAccountingUsage = async (usage: Record<string, unknown> | null, complete: boolean) => {
+    const accountingUsage = normalizeNativeUsage(usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" });
+    const accountingCost = accountingUsage ? nativeUsageCostUsd(usage, input.execution.provider) : undefined;
+    complete = complete && accountingUsage !== undefined;
+    const costStatus = complete ? undefined : "unpriced" as const;
+    const billing = resolveNativeBilling(input.execution.provider, input.runnerEnvironment, input.billingIdentity);
+    await input.onUsage?.({ usage: accountingUsage, ...billing, complete, usageBasis: "per_run",
+      model: input.execution.provider.model ?? "unknown", costUsd: accountingCost ?? null, costStatus });
+    if (!input.onUsage) await input.db.update(heartbeatRuns).set({
+      costAccountingPending: true,
+      usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({
+        ...accountingUsage, ...billing, accountingReceiptReady: complete, model: input.execution.provider.model ?? "unknown",
+        costUsd: accountingCost ?? null, costStatus: costStatus ?? null, usageSource: "per_run",
+      })}::jsonb`,
+    }).where(and(eq(heartbeatRuns.id, input.execution.binding.runId), eq(heartbeatRuns.companyId, input.execution.binding.companyId), isNull(heartbeatRuns.costAccountedAt)));
+  };
+  // appendEvent awaits this receipt before the runtime may commit completeRun.
+  // Replayed events must rebuild it too after a stop between event and receipt.
+  const observeAccountingEvent = async (event: PrpEvent) => {
+    const payload = record(event.payload);
+    const usage = record(payload.usage);
+    const delta = record(usage.runDelta);
+    if (event.eventType === "turn.started") {
+      observedAccountingTurn = undefined;
+      if (observedAccountingUsage) await persistAccountingUsage(observedAccountingUsage, false);
+    }
+    // A warm attachment seeds a zero snapshot before any provider report.
+    // Only a fresh run delta for this turn can close its accounting. A later
+    // malformed report invalidates completeness instead of retaining a
+    // smaller earlier total or falling back to cumulative session usage.
+    if (payload.kind === "usage") {
+      observedAccountingTurn = undefined;
+      if (Object.hasOwn(usage, "runDelta")) {
+        observedAccountingUsage = { runDelta: delta, runDeltaComplete: usage.runDeltaComplete };
+        if (normalizeNativeUsage(observedAccountingUsage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" })) {
+          observedAccountingTurn = event.turnId;
+        }
+      }
+      if (observedAccountingUsage) await persistAccountingUsage(observedAccountingUsage, false);
+    }
+    if (["turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"].includes(event.eventType)
+      && observedAccountingUsage && observedAccountingTurn !== undefined && event.turnId === observedAccountingTurn) {
+      await persistAccountingUsage(observedAccountingUsage, true);
+    }
+  };
   let completedConversationReply: PrpEvent | null = null;
   const controlPlane = new PaperclipControlPlanePort(
     input.db,
@@ -7870,6 +7921,7 @@ async function executePaperclipNativeSessionWithinScope(
     {
       privateKeyPem: input.runnerEnvironment?.PAPERCLIP_AGENT_PRIVATE_KEY,
       onCommittedEvent: async (event) => {
+        await observeAccountingEvent(event);
         await toolTrace.observe(event);
         if (event.eventType === "item.completed" &&
             record(event.payload).kind === "agentMessage" &&
@@ -8077,6 +8129,7 @@ async function executePaperclipNativeSessionWithinScope(
         );
       },
       onDuplicateEvent: async (event) => {
+        await observeAccountingEvent(event);
         // A crash can happen after the event commit but before its callback
         // finishes. Recover only idempotent durable projections here; activity,
         // publication, logging, trace, and metric effects remain committed-only.
@@ -8620,6 +8673,15 @@ async function executePaperclipNativeSessionWithinScope(
       },
       { parentName: "task.run" },
     );
+    // Persist provider accounting before any workspace/issue finalization. A
+    // detached controller or failed finalizer must not lose a completed turn.
+    // session.usage() may be an attachment baseline, a partial report, or a
+    // cumulative session total. Use the observed run delta, and require its
+    // turn to match the terminal result before certifying it as complete.
+    native = { ...native, usage: observedAccountingUsage };
+    nativeAccountingComplete = observedAccountingUsage !== null
+      && observedAccountingTurn !== undefined && observedAccountingTurn === native.turnId;
+    await persistAccountingUsage(native.usage, nativeAccountingComplete);
     try {
       await completeManagedNativeCredentialTurn(managedCredentialSession);
     } catch {
@@ -9254,10 +9316,13 @@ async function executePaperclipNativeSessionWithinScope(
     summary: native.result.summary,
     sessionId: native.normalizedSessionId,
     sessionDisplayId: native.providerSessionId ?? native.normalizedSessionId,
-    provider: nativeUsageBiller(input.execution.provider),
+    ...resolveNativeBilling(input.execution.provider, input.runnerEnvironment, input.billingIdentity),
     model: input.execution.provider.model,
-    usage: normalizeNativeUsage(native.usage),
-    costUsd: nativeUsageCostUsd(native.usage, input.execution.provider),
+    usage: normalizeNativeUsage(native.usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" }),
+    costUsd: normalizeNativeUsage(native.usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" })
+      ? nativeUsageCostUsd(native.usage, input.execution.provider) ?? null : null,
+    costStatus: nativeAccountingComplete ? undefined : "unpriced",
+    usageComplete: nativeAccountingComplete,
     usageBasis: "per_run",
     nativeFinalization: finalization,
   };
@@ -9288,6 +9353,9 @@ function numericUsageField(
 
 function nativeUsageMeasurement(usage: Record<string, unknown>) {
   const nestedUsage = record(usage.usage);
+  // An explicit partial delta must not fall through to a full session total.
+  if (Object.hasOwn(usage, "runDelta")) return record(usage.runDelta);
+  if (Object.hasOwn(nestedUsage, "runDelta")) return record(nestedUsage.runDelta);
   const candidates = [
     record(usage.runDelta),
     record(nestedUsage.runDelta),
@@ -9332,50 +9400,73 @@ export function nativeUsageCostUsd(
   if (provider?.kind === "acpx" && ["cursor", "copilot", "pi"].includes(provider.agent)) return undefined;
   if (!usage) return undefined;
   const measurement = nativeUsageMeasurement(usage);
-  const direct =
-    numericUsageField(usage, [
-      "providerCostUsd",
-      "cacheAdjustedCostUsd",
-      "costUsd",
-    ]) ??
-    numericUsageField(measurement, [
-      "providerCostUsd",
-      "cacheAdjustedCostUsd",
-      "costUsd",
-    ]);
-  if (direct !== undefined) return direct;
-  const cost = record(usage.cost);
+  const hasRunDelta = Object.hasOwn(usage, "runDelta") || Object.hasOwn(record(usage.usage), "runDelta");
+  const direct = numericUsageField(measurement, ["cacheAdjustedCostUsd", "providerCostUsd", "costUsd"])
+    ?? (hasRunDelta ? undefined : numericUsageField(usage, ["cacheAdjustedCostUsd", "providerCostUsd", "costUsd"]));
+  // PRP currently defaults an absent providerCostUsd to zero. That zero is
+  // not proof of a free request when the runtime observed token consumption.
+  if (direct !== undefined && direct > 0) return direct;
+  const normalized = normalizeNativeUsage(usage);
+  if (direct === 0 && normalized && Object.values(normalized).every(value => value === 0)) return 0;
+  const cost = record(hasRunDelta ? measurement.cost : usage.cost);
   const currency =
     typeof cost.currency === "string" ? cost.currency.toUpperCase() : "USD";
   if (currency !== "USD") return undefined;
   return numericUsageField(cost, ["amount", "total"]);
 }
 
-export function normalizeNativeUsage(usage: Record<string, unknown> | null) {
-  if (!usage) return undefined;
+/** Billing identity follows the selected runtime and resolved credentials.
+ * Unknown authentication remains unknown; a provider name does not prove billing mode. */
+export function resolveNativeBilling(provider: NativeExecutionInput["provider"], env: NodeJS.ProcessEnv = {}, identity?: Pick<AdapterExecutionResult, "provider" | "biller" | "billingType">): Pick<AdapterExecutionResult, "provider" | "biller" | "billingType"> {
+  if (identity) return identity.provider === "openai" && identity.billingType === "metered_api"
+    ? { ...identity, biller: inferOpenAiCompatibleBiller(env, identity.biller ?? "unknown") }
+    : identity;
+  if (provider.kind === "claude_managed") return { provider: "anthropic", biller: "anthropic", billingType: "metered_api" };
+  if (provider.kind === "aws_agentcore") return { provider: "aws_agentcore", biller: "aws_agentcore", billingType: "metered_api" };
+  if (provider.kind === "acpx" && ["cursor", "copilot"].includes(provider.agent)) {
+    const biller = nativeUsageBiller(provider);
+    return { provider: biller, biller, billingType: "unknown" };
+  }
+  if (provider.kind === "acpx" && provider.agent === "claude") {
+    if (env.CLAUDE_CODE_USE_BEDROCK === "1") return { provider: "anthropic", biller: "aws_bedrock", billingType: "metered_api" };
+    return { provider: "anthropic", biller: "anthropic", billingType: env.ANTHROPIC_API_KEY ? "metered_api" : env.CLAUDE_CODE_OAUTH_TOKEN ? "subscription_included" : "unknown" };
+  }
+  if (provider.kind === "opencode" || (provider.kind === "acpx" && provider.agent === "pi")) {
+    const parts = (provider.model ?? "").split("/");
+    const biller = parts.length > 1 ? parts[0] : provider.kind === "acpx" ? nativeUsageBiller(provider) : "unknown";
+    const modelProvider = biller === "openrouter" && parts.length > 2 ? parts[1] : biller;
+    return { provider: modelProvider, biller, billingType: "unknown" };
+  }
+  if (provider.kind !== "codex" && !(provider.kind === "acpx" && provider.agent === "codex"))
+    return { provider: "unknown", biller: "unknown", billingType: "unknown" };
+  return { provider: "openai", biller: env.OPENAI_API_KEY ? inferOpenAiCompatibleBiller(env, "openai") : "unknown", billingType: env.OPENAI_API_KEY ? "metered_api" : "unknown" };
+}
+
+export function normalizeNativeUsage(usage: Record<string, unknown> | null, options: { inputIncludesCacheReads?: boolean } = {}) {
+  if (!usage || usage.runDeltaComplete === false || record(usage.usage).runDeltaComplete === false) return undefined;
   const measurement = nativeUsageMeasurement(usage);
   const cache = record(measurement.cache);
-  const cachedInputTokens =
-    numericUsageField(measurement, [
-      "cachedInputTokens",
-      "cacheReadInputTokens",
-      "cacheReadTokens",
-      "cachedReadTokens",
-    ]) ?? numericUsageField(cache, ["read"]);
+  const count = (source: Record<string, unknown>, keys: string[]) => {
+    for (const key of keys) {
+      if (source[key] === undefined) continue;
+      const value = source[key];
+      return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : NaN;
+    }
+    return undefined;
+  };
+  const input = count(measurement, ["inputTokens", "input", "promptTokens"]);
+  const outputTokens = count(measurement, ["outputTokens", "output", "completionTokens"]);
+  const cachedInputTokens = count(measurement, ["cachedInputTokens", "cacheReadInputTokens", "cacheReadTokens", "cachedReadTokens"]) ?? count(cache, ["read"]);
+  const cacheWriteTokens = count(measurement, ["cacheWriteTokens", "cacheCreationInputTokens", "cachedWriteTokens"]) ?? count(cache, ["write"]);
+  if (input === undefined || outputTokens === undefined
+    || ![input, outputTokens, cachedInputTokens ?? 0, cacheWriteTokens ?? 0].every(Number.isSafeInteger)) return undefined;
+  const inputTokens = input - (options.inputIncludesCacheReads ? cachedInputTokens ?? 0 : 0)
+    + (options.inputIncludesCacheReads ? 0 : cacheWriteTokens ?? 0);
+  if (!Number.isSafeInteger(inputTokens) || inputTokens < (cacheWriteTokens ?? 0)) return undefined;
   return {
-    inputTokens:
-      numericUsageField(measurement, [
-        "inputTokens",
-        "input",
-        "promptTokens",
-      ]) ?? 0,
-    outputTokens:
-      numericUsageField(measurement, [
-        "outputTokens",
-        "output",
-        "completionTokens",
-      ]) ?? 0,
+    inputTokens, outputTokens,
     ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }),
+    ...(cacheWriteTokens === undefined ? {} : { cacheWriteTokens }),
   };
 }
 
