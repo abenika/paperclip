@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { redactTransferEvidence } from "./public-mcp-transfer-evidence.js";
 import { assertSecretFree } from "./redaction.js";
-import { runExpandedMcpScenario } from "./public-mcp-expanded-flow.js";
+import { hasRequestedTaskEditSequence, runExpandedMcpScenario } from "./public-mcp-expanded-flow.js";
 import { origin } from "./public-mcp-client.js";
 import { isReadOnlyMcpCall } from "./public-mcp-grading.js";
 import type { RunnerApi } from "./api.js";
@@ -16,10 +16,11 @@ describe("expanded MCP independent evidence calibration", () => {
       const nonce = "calibration";
       const bytes = Buffer.concat([Buffer.from([0, 255, 1, 128]), Buffer.from(`BINARY${nonce}`)]);
       const companyId = "company", taskId = "task";
+      let activityReads = 0;
       const api = {
         post: async () => ({ id: "agent", name: "Settings agent" }),
         get: async (path: string) => {
-          if (path.endsWith("/activity?limit=100")) return valid ? [{ action: "issue.updated", details: { status: "blocked" } }] : [];
+          if (path.endsWith("/activity?limit=100")) return ++activityReads > 1 && valid ? taskHistory(nonce) : [];
           if (path.endsWith("/documents/report/revisions")) return valid ? [{ id: "old" }, { id: "new" }] : [];
           if (path.endsWith("/documents/report")) return { body: valid ? `GARDEN DOCUMENT${nonce}` : "GARDEN" };
           if (path.endsWith("/attachments")) return valid ? [{ originalFilename: "demo.mp4", byteSize: bytes.length }] : [];
@@ -69,3 +70,24 @@ describe("expanded MCP independent evidence calibration", () => {
    expect(() => assertSecretFree(JSON.stringify(redactTransferEvidence({ token: "provider-secret" }, [ticket, url])), ["provider-secret"], "unexpected")).toThrow("Secret leak");
    expect(value.result.url).toBe(url);
  });
+
+function taskHistory(nonce: string) {
+  return [
+    { description: `Edited ${nonce}`, priority: "high" },
+    { status: "blocked", unblockDescriptor: { owner: "board", action: `Supply source ${nonce}` } },
+    { status: "done" },
+  ].map((details, index) => ({ id: `event-${index}`, actorType: "user", action: "issue.updated", createdAt: new Date(1000 * (index + 1)).toISOString(), details }));
+}
+it("rejects wrong blocker ownership, action, actor and out-of-order completion", () => {
+  expect(hasRequestedTaskEditSequence(taskHistory("n"), "n")).toBe(true);
+  for (const mutate of [
+    (h: any[]) => { h[1].details.unblockDescriptor.owner = "agent"; },
+    (h: any[]) => { h[1].details.unblockDescriptor.action = "Wrong action"; },
+    (h: any[]) => { h[1].actorType = "agent"; },
+    (h: any[]) => { h[2].createdAt = new Date(500).toISOString(); },
+    (h: any[]) => { h.unshift({ ...h[2], id: "earlier-finish", createdAt: new Date(500).toISOString() }); },
+  ]) {
+    const history = taskHistory("n"); mutate(history);
+    expect(hasRequestedTaskEditSequence(history, "n")).toBe(false);
+  }
+});

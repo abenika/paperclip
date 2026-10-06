@@ -659,16 +659,16 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     } finally { await f.cleanup(); }
   });
 
-  it("preserves active execution ownership and rejects dependency cycles", async () => {
+  it.each(["queued", "running", "scheduled_retry"])("preserves %s execution ownership and rejects dependency cycles", async status => {
     const f = await expandedFixture();
     try {
       const [agent] = await db.insert(agents).values({ companyId: f.company.id, name: "Worker" }).returning();
-      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: agent!.id, status: "running", runtimeMode: "native", nativeIssueId: f.issue.id }).returning();
+      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: agent!.id, status, runtimeMode: "native", nativeIssueId: f.issue.id }).returning();
       await db.update(issues).set({ assigneeAgentId: agent!.id, executionRunId: run!.id, status: "in_progress" }).where(eq(issues.id, f.issue.id));
       for (const changes of [{ status: "done" }, { status: "blocked", unblockDescriptor: { owner: "board", action: "Supply data" } }, { assigneeAgentId: null }, { status: "cancelled" }]) {
         expect(await f.call("paperclip_update_task", { taskId: f.issue.id, requestId: randomUUID(), changes })).toMatchObject({ outcome: "rejected", status: 409, code: "MCP_ACTIVE_EXECUTION" });
       }
-      expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id)))[0]?.status).toBe("running");
+      expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id)))[0]?.status).toBe(status);
       expect(await f.call("paperclip_update_task", { taskId: f.issue.id, requestId: randomUUID(), changes: { title: "Clarified title" } })).toHaveProperty("task.title", "Clarified title");
       await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, run!.id));
       await db.update(issues).set({ assigneeAgentId: null, executionRunId: null, status: "backlog" }).where(eq(issues.id, f.issue.id));
@@ -677,6 +677,30 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       const cycle = await f.call("paperclip_update_task", { taskId: f.issue.id, requestId: randomUUID(), changes: { blockedByIssueIds: [second!.id] } });
       expect(cycle).toMatchObject({ outcome: "rejected" });
       expect([400, 409, 422]).toContain(cycle.status);
+    } finally { await f.cleanup(); }
+  });
+
+  it.each([
+    ["codex_local", "gpt-5.4", "modelReasoningEffort"],
+    ["claude_local", "claude-sonnet-4-6", "effort"],
+    ["paperclip_runner", "gpt-5.4", "modelReasoningEffort"],
+  ])("updates the effective %s reasoning setting and validates its model", async (adapterType, model, field) => {
+    const f = await expandedFixture(true);
+    try {
+      const [agent] = await db.insert(agents).values({ companyId: f.company.id, name: "Reasoning", adapterType,
+        adapterConfig: { model, [field]: "high", instructionsBundleMode: "managed" }, runtimeConfig: { heartbeat: { enabled: false } } }).returning();
+      const edited = await f.call("paperclip_update_agent", { agentId: agent!.id, requestId: randomUUID(), changes: { adapterConfig: { reasoningEffort: "low" } } });
+      expect(edited, JSON.stringify(edited)).toHaveProperty("agent.adapterConfig.reasoningEffort", "low");
+      const stored = (await db.select().from(agents).where(eq(agents.id, agent!.id)))[0]!;
+      expect(stored.adapterConfig[field]).toBe("low");
+      expect(stored.adapterConfig.reasoningEffort).toBeUndefined();
+      expect(await f.call("paperclip_get_agent", { agentId: agent!.id })).toHaveProperty("agent.adapterConfig.reasoningEffort", "low");
+      for (const reasoningEffort of ["ultra"]) {
+        expect(await f.call("paperclip_update_agent", { agentId: agent!.id, requestId: randomUUID(), changes: { adapterConfig: { reasoningEffort } } })).toMatchObject({ outcome: "rejected" });
+      }
+      if (adapterType === "claude_local") {
+        expect(await f.call("paperclip_update_agent", { agentId: agent!.id, requestId: randomUUID(), changes: { adapterConfig: { model: "claude-haiku-4-5" } } })).toMatchObject({ outcome: "rejected", status: 422 });
+      }
     } finally { await f.cleanup(); }
   });
 

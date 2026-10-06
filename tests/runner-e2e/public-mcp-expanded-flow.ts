@@ -17,11 +17,12 @@ export async function runExpandedMcpScenario(input: {
   const taskPath = `/api/issues/${taskId}`;
   const match = (id: string, passed: boolean) => check(id, passed, "Independent persisted API state or downloaded byte digest.");
   if (input.id === "expanded-task-edit") {
+    const previous = new Set((await api.get<any[]>(taskPath + "/activity?limit=100")).map(row => row.id));
     await converse(`Update the existing task "${title}": description must be exactly "Edited ${nonce}" and priority high. Then block it with the board owning the action "Supply source ${nonce}". Finally mark it done. Do not add comments, change its title, or create tasks.`);
     const task = await api.get<any>(taskPath);
     const history = await api.get<any[]>(taskPath + "/activity?limit=100");
     match("edited-task", task.description === `Edited ${nonce}` && task.priority === "high" && task.status === "done");
-    match("blocked-before-finished", history.some(row => row.action === "issue.updated" && (row.details?.status === "blocked" || row.details?.changes?.status?.to === "blocked")));
+    match("blocked-before-finished", hasRequestedTaskEditSequence(history.filter(row => !previous.has(row.id)), nonce));
   } else if (input.id === "expanded-documents") {
     await converse(`Read the report document on "${title}" and append a new paragraph containing exactly "DOCUMENT${nonce}". Preserve all original content and use its current revision to update it. Do not change task status or add comments.`);
     const document = await api.get<any>(taskPath + "/documents/report");
@@ -94,4 +95,17 @@ export async function runExpandedMcpScenario(input: {
     match("generic-api-durable-edit", saved.description === `API${nonce}`);
     match("generic-api-used", answer.calls.some(c => c.name === "paperclip_search_api") && answer.calls.some(c => c.name === "paperclip_call_api"));
   } else throw new Error("Unknown expanded MCP evaluation case");
+}
+
+/** Ignore older worker activity; require this user's ordered edit/block/finish trail. */
+export function hasRequestedTaskEditSequence(history: any[], nonce: string): boolean {
+  const changes = history.filter(row => row.action === "issue.updated" && row.actorType === "user")
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const statusChanges = changes.filter(row => row.details?.status !== undefined);
+  if (statusChanges.length !== 2 || statusChanges[0].details.status !== "blocked" || statusChanges[1].details.status !== "done") return false;
+  const blocked = statusChanges[0];
+  if (blocked.details.unblockDescriptor?.owner !== "board" || blocked.details.unblockDescriptor?.action !== `Supply source ${nonce}`) return false;
+  const edit = changes.find(row => row.details?.description === `Edited ${nonce}` && row.details?.priority === "high");
+  return Boolean(edit && new Date(edit.createdAt).getTime() < new Date(blocked.createdAt).getTime()
+    && new Date(blocked.createdAt).getTime() < new Date(statusChanges[1].createdAt).getTime());
 }

@@ -1665,7 +1665,10 @@ describe("worktree helpers", () => {
       // table. Build the actual all-but-last schema before shuffling its history.
       const migrationsRoot = new URL("../../../packages/db/src/migrations/", import.meta.url);
       const journal = JSON.parse(fs.readFileSync(new URL("meta/_journal.json", migrationsRoot), "utf8"));
-      const priorEntries = journal.entries.slice(0, -1);
+      // Pin the legacy schema before the identity repair, independent of later migrations.
+      const repairIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0309_loving_the_hood");
+      expect(repairIndex).toBeGreaterThan(0);
+      const priorEntries = journal.entries.slice(0, repairIndex);
       const priorMigrations = path.join(tempRoot, "prior-migrations");
       fs.mkdirSync(path.join(priorMigrations, "meta"), { recursive: true });
       fs.writeFileSync(path.join(priorMigrations, "meta", "_journal.json"), JSON.stringify({ ...journal, entries: priorEntries }));
@@ -1717,7 +1720,7 @@ describe("worktree helpers", () => {
       if (laggingMigrationState.status !== "needsMigrations") {
         throw new Error("Expected the source migration journal to lag the code journal");
       }
-      expect(laggingMigrationState.pendingMigrations).toHaveLength(1);
+      expect(laggingMigrationState.pendingMigrations).toHaveLength(journal.entries.length - priorEntries.length);
       const expectedAppliedPrefix = laggingMigrationState.availableMigrations.slice(
         0,
         laggingMigrationState.appliedMigrations.length,

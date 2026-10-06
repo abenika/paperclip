@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mcpAgentModelConfig } from "./agent-config.js";
 import {
   updateIssueSchema, upsertIssueDocumentSchema, updateAgentSchema, upsertAgentInstructionsFileSchema,
   aiRuntimeConnectionBindingSchema, createProjectSchema, updateProjectSchema,
@@ -17,7 +18,7 @@ const taskChanges = updateIssueSchema.pick({ title: true, description: true, ass
   assigneeAgentId: z.uuid().nullable().optional(), blockedByIssueIds: z.array(z.uuid()).max(100).optional(),
 }).strict();
 const agentChanges = updateAgentSchema.pick({ name: true, role: true, title: true, icon: true, reportsTo: true, capabilities: true, desiredSkills: true, budgetMonthlyCents: true }).extend({
-  adapterConfig: z.object({ model: z.string().trim().min(1).max(256).optional(), reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]).optional() }).strict().optional(),
+  adapterConfig: z.object({ model: z.string().trim().min(1).max(256).optional(), reasoningEffort: z.enum(["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]).optional() }).strict().optional(),
   runtimeConfig: z.object({ aiConnection: aiRuntimeConnectionBindingSchema }).strict().optional(),
 }).strict();
 const projectFields = { name: true, description: true, status: true, leadAgentId: true, goalIds: true, targetDate: true, color: true, icon: true } as const;
@@ -31,7 +32,7 @@ const workFields = ["id", "issueId", "type", "provider", "externalId", "title", 
 const skillFields = ["id", "companyId", "name", "slug", "key", "description", "markdown", "versionId", "currentVersionId", "latestVersionId", "categories", "tagline", "iconUrl", "color", "authorName", "homepageUrl", "sharingScope", "updatedAt"];
 function agentOutput(value: unknown) {
   const v = object(value);
-  return { ...pick(v, agentFields), adapterConfig: pick(v.adapterConfig, ["model", "reasoningEffort"]), runtimeConfig: pick(v.runtimeConfig, ["aiConnection"]) };
+  return { ...pick(v, agentFields), adapterConfig: mcpAgentModelConfig(String(v.adapterType), object(v.adapterConfig)), runtimeConfig: pick(v.runtimeConfig, ["aiConnection"]) };
 }
 function projectOutput(value: unknown) {
   const v = object(value);
