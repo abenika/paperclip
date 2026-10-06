@@ -33,6 +33,8 @@ TypeScript profile registry, provider-pack builder, server pack verifier, and
 Cursor installation code. `packages/paperclip-runner/acpx-profiles.json` now owns
 the release/profile declarations; generated TypeScript and named Rust structs
 share them. Model admission is explicit and separate from qualification examples.
+Server admission calls the same resolver. Existing Claude/Grok product defaults
+are named separately; Cursor and Codex ACP still require explicit selection.
 Cursor closure pins are generated from the existing distribution manifest.
 Build and typecheck reject declaration drift, including mismatches with the
 Cursor release attestation and installed dependencies.

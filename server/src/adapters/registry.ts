@@ -138,7 +138,7 @@ import { httpAdapter } from "./http/index.js";
 import {
   DEFAULT_OPENCODE_RUNNER_MODEL,
   PaperclipRunnerProviderProfileError,
-  QUALIFIED_ACPX_RUNNER_MODELS,
+  DEFAULT_ACPX_RUNNER_MODELS,
   QUALIFIED_OPENCODE_RUNNER_VERSION,
   resolvePaperclipRunnerProviderProfile,
 } from "../services/native-runtime/provider-profile.js";
@@ -490,19 +490,19 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
   models: [
     ...codexModels,
     { id: DEFAULT_OPENCODE_RUNNER_MODEL, label: "OpenRouter · DeepSeek V4 Flash 0731" },
-    { id: QUALIFIED_ACPX_RUNNER_MODELS.claude, label: "Claude Sonnet 5" },
+    { id: DEFAULT_ACPX_RUNNER_MODELS.claude, label: "Claude Sonnet 5" },
     { id: "global.anthropic.claude-sonnet-4-6", label: "Amazon Bedrock · Claude Sonnet 4.6 (global)" },
   ],
   listModels: async () => [
     ...await listCodexModels(),
     { id: DEFAULT_OPENCODE_RUNNER_MODEL, label: "OpenRouter · DeepSeek V4 Flash 0731" },
-    { id: QUALIFIED_ACPX_RUNNER_MODELS.claude, label: "Claude Sonnet 5" },
+    { id: DEFAULT_ACPX_RUNNER_MODELS.claude, label: "Claude Sonnet 5" },
     { id: "global.anthropic.claude-sonnet-4-6", label: "Amazon Bedrock · Claude Sonnet 4.6 (global)" },
   ],
   refreshModels: async () => [
     ...await refreshCodexModels(),
     { id: DEFAULT_OPENCODE_RUNNER_MODEL, label: "OpenRouter · DeepSeek V4 Flash 0731" },
-    { id: QUALIFIED_ACPX_RUNNER_MODELS.claude, label: "Claude Sonnet 5" },
+    { id: DEFAULT_ACPX_RUNNER_MODELS.claude, label: "Claude Sonnet 5" },
     { id: "global.anthropic.claude-sonnet-4-6", label: "Amazon Bedrock · Claude Sonnet 4.6 (global)" },
   ],
   supportsLocalAgentJwt: false,

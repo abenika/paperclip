@@ -1,3 +1,4 @@
+import { resolveQualifiedAcpxProfile } from "../../vendor/paperclip-runner/index.js";
 import {
   isPaperclipRunnerProvider,
   PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES,
@@ -21,16 +22,16 @@ export const DEFAULT_OPENCODE_RUNNER_MODEL =
   "openrouter/deepseek/deepseek-v4-flash-0731" as const;
 export const CLAUDE_MANAGED_BETA_VERSION = "managed-agents-2026-04-01" as const;
 
-export const QUALIFIED_ACPX_RUNNER_MODELS = {
+export const DEFAULT_ACPX_RUNNER_MODELS = {
   grok: "grok-4.7",
   claude: "claude-sonnet-5",
-  codex: "gpt-5.6-sol",
-  // Cursor models are explicit and provider-verified; there is no default.
-  cursor: "",
+  // These profiles require explicit configuration. Admission belongs to the runner.
+  codex: null,
+  cursor: null,
 } as const;
 
 export type QualifiedPaperclipRunnerAcpxAgent =
-  keyof typeof QUALIFIED_ACPX_RUNNER_MODELS;
+  keyof typeof DEFAULT_ACPX_RUNNER_MODELS;
 type AdmittedPaperclipRunnerAcpxAgent = QualifiedPaperclipRunnerAcpxAgent | AcpxQualificationCandidate;
 
 export type PaperclipRunnerProviderProfile =
@@ -473,17 +474,19 @@ export function resolvePaperclipRunnerProviderProfile(
       "Paperclip Runner ACPX requires a qualified agent profile.",
     );
   }
-  const qualifiedModel = QUALIFIED_ACPX_RUNNER_MODELS[acpxAgent];
-  if (acpxAgent === "codex" && model !== qualifiedModel) {
+  const selectedModel = model || DEFAULT_ACPX_RUNNER_MODELS[acpxAgent] || "";
+  try {
+    resolveQualifiedAcpxProfile(acpxAgent, selectedModel);
+  } catch (error) {
     throw new PaperclipRunnerProviderProfileError(
       "paperclip_runner_acpx_model_unqualified",
-      `Paperclip Runner ACPX ${acpxAgent} requires exact model ${qualifiedModel}.`,
+      error instanceof Error ? error.message : "Paperclip Runner ACPX requires an admitted model.",
     );
   }
   return {
     provider: "acpx",
     backend: "acpx_runtime",
-    model: model || qualifiedModel,
+    model: selectedModel,
     acpxAgent,
   };
 }

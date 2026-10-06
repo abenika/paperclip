@@ -43,6 +43,24 @@ describe("host ACPX qualification admission", () => {
   it("does not alter existing qualified providers", () => {
     expect(resolveAcpxQualification({ ...provider, agent: "codex" } as typeof provider, authorize([]))).toBeUndefined();
   });
+  it.each(["claude", "grok", "cursor"])("keeps %s model selection open to native verification", (acpxAgent) => {
+    expect(resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent, model: "explicit-new-model" }))
+      .toMatchObject({ acpxAgent, model: "explicit-new-model" });
+  });
+  it("preserves exact Codex ACP admission and explicit selection", () => {
+    expect(resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent: "codex", model: "gpt-5.6-sol" }))
+      .toMatchObject({ acpxAgent: "codex", model: "gpt-5.6-sol" });
+    for (const model of [undefined, "", "different-model"]) {
+      expect(() => resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent: "codex", model }))
+        .toThrow(expect.objectContaining({ code: "paperclip_runner_acpx_model_unqualified" }));
+    }
+  });
+  it("preserves product defaults separately from qualification examples", () => {
+    for (const [acpxAgent, model] of [["claude", "claude-sonnet-5"], ["grok", "grok-4.7"]]) {
+      expect(resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent }))
+        .toMatchObject({ acpxAgent, model });
+    }
+  });
   it("binds the executor to host process environment rather than agent configuration", () => {
     const source = readFileSync(new URL("./native-session-executor.ts", import.meta.url), "utf8");
     expect(source).toContain("resolveAcpxQualification(input.execution.provider, process.env)");
