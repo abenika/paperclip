@@ -83,6 +83,14 @@ artifacts. Final PR checks validate the combined source separately. Release the
 qualified package/image pair above; any later package or image needs release
 verification against its own identity.
 
+The first CI run of the merged source lost five workers to simultaneous runner
+shutdowns. A single infrastructure repeat recovered four jobs; the remaining
+server shard hit a 10-second override in the legacy Cursor sandbox command test.
+That unchanged file passed all five cases in a focused local run. The test now
+inherits the server suite's existing 15-second limit, as its adjacent explicit
+command case already does. Assertions and production code are unchanged. The
+shutdowns and timeout remain recorded; they are separate from the live campaign.
+
 ### Final live acceptance matrix
 
 All 18 required cells passed, including cleanup: nine local and nine Daytona.
