@@ -25,7 +25,188 @@ spend or enforceable per-run dollar accounting. Native AskQuestion is implemente
 defensively but is not advertised or certified. See the
 [Cursor capability contract](../architecture/runner-cursor-capabilities.md).
 
-## Merge-readiness refresh — 2026-10-05
+## Final installed-release qualification — 2026-10-06
+
+This qualification follows the generic mode and provider lifecycle cleanup. Its
+frozen application source is `d7b696f9b8f79095233e9e3d56d23e6a6018dd48`.
+The public controller packages use source `3d0c9b7761c61eb56628ea1778b1f3ca50fe817f`;
+that source adds only a fixture correction. Fixture commits through `646795e8f` change qualification
+fixtures and documentation, with no changes to `cli/src`, `server/src`, `ui/src`
+or `packages` relative to the frozen application. Historical results below retain
+their original source and artifact identities.
+
+The tested public version is `0.0.0-cursor-verify.3d0c9b7761c6`. Cursor CLI
+`2026.09.26-dd393fe`, profile v11, patch `paperclip-cursor-usage-v4`, and explicit
+model `gpt-5.6-luna[context=272k,reasoning=medium,fast=false]` stayed fixed.
+The native distribution/profile digest is
+`sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e`.
+The resolved build-lock SHA-256 is
+`89e5164aa79945655d253f30540c86a620e9df434299af4f1325727dbf5edf47`.
+The tracked lockfile was not changed.
+
+| Packaged artifact | SHA-256 |
+| --- | --- |
+| macOS ARM64 daemon | `816c6603b4ef05ab29cc22a8b6cae9989469a8233bdedc3c97aae22a0c1c6abc` |
+| macOS x64 daemon | `372524b322f1200f1708288d0497195477ecf984e21dd32f3ddc2f2038465199` |
+| Linux x64 daemon | `d5a22554c922087f122ceeb0e7527529221c41af171b37315469c838dede0288` |
+| Public `paperclipai` tarball | `14a96c7de0c20cde231782f54ce0df76c1d6a81512f0c5b38a08ec8e8786631a` |
+| Public server tarball | `6e66d37c3ee4d61b66bbc5f2515550a246d8afc8a10b5425c064f5ec3f661d66` |
+| Public Daytona plugin tarball | `a6cf4e9070503757be0505d6a1a8df219dca493f801831b3cc1ca83a185d07db` |
+
+The immutable qualification image is
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:d6259b6bba094702c13fc2283bd85550849c1c53145b656fb2746778f9fa1747`.
+Its Linux provider-pack digest is
+`sha256:1916578945ba709e00904688792e50bedf505d45d69cc2023a4c95235c86cb18`.
+The complete extracted pack passed verification. Anonymous registry inspection
+confirmed the published OCI index and amd64 image. This publication does not
+publish an npm release or deploy production.
+
+Clean public-package installation passed on macOS ARM64, macOS x64 through
+Rosetta, and Linux x64. Normal npm lifecycle scripts ran; Cursor remained absent
+until explicit `paperclipai runtime setup cursor`. Setup verified the pinned
+closure, and normal resolution launched each platform's packaged daemon without
+candidate or asset overrides. The x64 Mac proof covers installation and daemon
+startup under Rosetta, not a separate native Intel live campaign. The public
+Daytona plugin was built, packed and installed with its own dependencies. Its
+version matches the controller packages. Live cells use that installed CLI and
+plugin, company secret bindings, ordinary production admission, and the immutable
+image. Repository loaders and qualification overrides are absent.
+
+### Post-qualification mainline reconciliation
+
+Mainline `16b7db35ffa0f9a95913c8cbdeea3d595435691f` was merged after the
+frozen campaign. The only conflicts were the fixture catalog count (now 504)
+and flow dispatch in `tests/runner-e2e/runner.spec.ts`; both retain the Cursor
+coverage and mainline's plan-task cases. The native selected-response consistency
+wait remains intact. This reconciliation does not rebuild or relabel the tested
+artifacts. Final PR checks validate the combined source separately. Release the
+qualified package/image pair above; any later package or image needs release
+verification against its own identity.
+
+### Final live acceptance matrix
+
+All 18 required cells passed, including cleanup: nine local and nine Daytona.
+These are real Cursor sessions through the installed product. Each cell used
+the same frozen runtime, explicit model and normal company credential path.
+There were 23 attempts; the five failed attempts remain recorded below.
+
+Campaign IDs have prefix `cursor-v11-final-d7-installed-`, followed by
+`<environment>-<case>-<attempt>`. The table gives the passing attempt number.
+
+| Case | Local | Daytona | Cleanup |
+| --- | --- | --- | --- |
+| `hello-complete` | Pass (02) | Pass (01) | Both passed |
+| `file-edit-validate` | Pass (01) | Pass (01) | Both passed |
+| `structured-question-restart-resume` | Pass (01) | Pass (01) | Both passed |
+| `native-plan-reject-revise-accept` | Pass (01) | Pass (01) | Both passed |
+| `native-plan-cancel` | Pass (02) | Pass (01) | Both passed |
+| `native-write-deny-reconnect` | Pass (03) | Pass (01) | Both passed |
+| `pending-permission-stop` | Pass (01) | Pass (01) | Both passed |
+| `warm-three-turn` | Pass (01) | Pass (02) | Both passed |
+| `pending-permission-provider-loss` | Pass (01) | Pass (01) | Both passed |
+
+Questions survived controller restart and consumed the answer once. Native plans
+verified rejection, revision, acceptance and cancellation; accepted planning runs
+succeeded while tasks remained open awaiting explicit direction. Denied writes
+stayed absent. Stop cancelled the real pending permission and retired owned
+processes. Warm continuation preserved three turns and selected persisted replies.
+Provider loss expired undeliverable input without automatic mutation replay.
+Changed file bytes, validation results and accessible artifacts were independently
+verified. Every selected result has complete evidence and no reported evidence
+leaks or missing evidence.
+
+### Retained failures and bounded fixture repairs
+
+Every paid attempt ran serially with automatic retries disabled. Four local attempts and one Daytona attempt remain failed; none is relabeled or removed:
+
+- `local-hello-complete-01`: the old task-creation helper expected the removed
+  title field. It failed before creating a task or starting a provider. The
+  repaired helper uses the prompt-only composer and captures the real creation
+  response ID. Its diagnosed repeat passed.
+- `local-native-plan-cancel-01`: native cancellation, exact decision delivery,
+  terminal task/run state, workspace immutability, and cleanup passed. The model
+  inserted `PLAN` into the requested exact summary marker. This remains a
+  model/provider behavior failure. One repeat with the identical prompt and
+  assertions passed; the repeat does not erase the original failure.
+- `local-native-write-deny-reconnect-01`: the provisional task title caused an
+  earlier task-naming permission request. The strict fixture waited for its
+  exact write command and timed out. Native permission fixtures now create an
+  explicit title through Search's public creation action before starting the
+  provider. No policy or provider prompt changed. The original full cleanup
+  grade remains failed because denial proof was incomplete. Its complete process
+  journal was empty, a later identity check confirmed all ten owned processes
+  were gone, and the continuous watcher recorded no target mutation.
+- `local-native-write-deny-reconnect-02`: the exact write was denied and the task
+  became Blocked, but the fixture expected the old Cursor-specific error text.
+  The provider lifecycle cleanup correctly emits the provider-neutral diagnostic.
+  The fixture now accepts that exact diagnostic and the exact historical one;
+  all request, command, turn, terminal, no-replay and no-effect requirements stay
+  in place. The original failed cleanup grade remains recorded. Its process
+  journal was empty and its continuous watcher recorded no target mutation.
+  The subsequent live repeat completed every required assertion and cleanup.
+
+- `daytona-warm-three-turn-01`: all three runs and file updates completed, but
+  the fixture stopped its response wait on an earlier deliverable-preparation
+  comment. The final marker was persisted 53ms after the final run finished and
+  is present with its selected-comment receipt in the retained fallback evidence.
+  The original verdict remains failed and cleanup passed. The consistency wait
+  now hydrates the native run detail and requires its actual selected comment;
+  it cannot substitute a finish summary or a file-preparation message. The
+  affected repeat passed with unchanged prompts and continuity assertions.
+
+The shared browser helper also received a review fix for remembered project
+selection. Credential-free browser checks create repeated tasks, switch projects,
+and verify ordinary and explicit-title creation in standard, planning and ask work modes with
+paused agents. All three checks pass without provider runs. Fixture typecheck,
+1,627 Vitest checks (one skip), and 128 Node checks passed; the final diagnostic
+repair passed 150 focused native lifecycle checks. A failing provider-free search
+probe remains retained; the corrected probe scopes the exact phrase to tasks.
+
+The existing seven Runner semantic passes and seven strict accounting failures
+remain historical results under their original build identities. This campaign
+is the focused 18-cell installed-release selection, not a rerun of the full
+catalog. Native AskQuestion and authoritative per-run dollar accounting remain
+excluded. Per-run USD remains unknown. The original $100 total budget is bounded
+by the existing $25 account-cycle cap plus retained commitments and infrastructure
+reservations. The conservative committed/reserved total is $88.080380624, leaving
+$11.919619376 unreserved; these are spending bounds, not measured provider spend.
+
+<details>
+<summary>Exact result receipts for all 23 attempts</summary>
+
+Each result lives under `tests/runner-e2e/results/<campaign>/<suite>/runner-acpx-cursor/<environment>/<case>/attempt-1/result.json`.
+The full campaign prefix is defined above. The SHA-256 identifies the original
+result file; later diagnoses do not rewrite its verdict.
+
+| Campaign suffix | Verdict / cleanup | Result SHA-256 |
+| --- | --- | --- |
+| `local-hello-complete-01` | failed / passed | `59d8dc9194ee74fe1cd9827103f2734abb5e14d81232280d80ffdb5f6dede9e7` |
+| `local-hello-complete-02` | passed / passed | `e4c0839d417ee7de3d79d5c5898d7ad05fbe1c66103979cdea470a422ec1a0d2` |
+| `local-file-edit-validate-01` | passed / passed | `d45f3b2975c9ac359e969940b2209f47096cfdcebd3302c6ab42d1933e1df351` |
+| `local-structured-question-restart-resume-01` | passed / passed | `0ad49f9833236998b597a245de05ca7c05208865c0c5f50d944607b07242b2f9` |
+| `local-native-plan-reject-revise-accept-01` | passed / passed | `07d83d372061894812e6751679fa4f3dfb1754989aaa63a4ca6828578504ca91` |
+| `local-native-plan-cancel-01` | failed / passed | `dd22d0cfd3366fbebf041807401d16ff327e92b05e08521b220613df68fc2b1e` |
+| `local-native-plan-cancel-02` | passed / passed | `a4b06aefec7570af8f818e2a2705f100e10f2e8bd26fa5a500e25a6f7dc85c11` |
+| `local-native-write-deny-reconnect-01` | failed / failed | `aa27b5df8b1220dfa936934666c708f899d663d2b1c3a15faf19de3842af4c4d` |
+| `local-native-write-deny-reconnect-02` | failed / failed | `066dbfef92e151b87c31a62f6a8f825af0bbcab8d791b4c0aa448e30e90e3066` |
+| `local-native-write-deny-reconnect-03` | passed / passed | `33f8fedad38789d37874e7622e7bcb15227fa2412b8aa2b6ef919a03d3903988` |
+| `local-pending-permission-stop-01` | passed / passed | `b8101e2155f4b6bce481ee0cddb6b1c34af71dbe20798081d8821eef2dc4fbe2` |
+| `local-warm-three-turn-01` | passed / passed | `65c64e282ef0cb667c89b329c4b0f22104fd0d12c811aa450638bd093d04f2b5` |
+| `local-pending-permission-provider-loss-01` | passed / passed | `f8e7dc15fa051081f38f5a08292eeec7c83713964b9fb26304a5a9d2dd6edfb5` |
+| `daytona-hello-complete-01` | passed / passed | `787dd287c2d29350b9ad8e48fee73bdaecbdd059342bed44bc9304e5965bbe01` |
+| `daytona-file-edit-validate-01` | passed / passed | `bdb575c04162a1a24fc6354a2a284fb156665ea02de2e69be7c250bd211a2bf5` |
+| `daytona-structured-question-restart-resume-01` | passed / passed | `d72536f01147e8b7b77c1e82ed34c0faf0c99176700f7c101c95b0b5665d01df` |
+| `daytona-native-plan-reject-revise-accept-01` | passed / passed | `3cdb6ef262788f949d44d7d1b84c258d0494968949fb6c010c4496cc07442e5e` |
+| `daytona-native-plan-cancel-01` | passed / passed | `48190c0c3338c741aac319cd356dacfe1af011f8bdcea6fbf10d571fe6110211` |
+| `daytona-native-write-deny-reconnect-01` | passed / passed | `d89dd8794c5866c3612ab9a60f023dd136740a8525fd0c93feacc7bd0e17f90a` |
+| `daytona-pending-permission-stop-01` | passed / passed | `fc7aae403d32d1a587c4caf711bf9cba61cb7206f8c24bfac02175293874ce07` |
+| `daytona-warm-three-turn-01` | failed / passed | `528145330b803d21dc25937d3ef768c6dda3bb6583ba35030d69112e8cefbe1a` |
+| `daytona-warm-three-turn-02` | passed / passed | `e3e3c295714679ee5e7040f52ebeaf95e9f860bde1b5698fbd2566588a0e161a` |
+| `daytona-pending-permission-provider-loss-01` | passed / passed | `e9d15896ae5fe72e239b4fff8dd4fc8743eb309fef084ad46275e681671f7821` |
+
+</details>
+
+## Historical merge-readiness refresh — 2026-10-05
 
 The branch incorporates mainline `72ff3a9f2` without replacing the qualified
 Cursor CLI, profile v11, patch or explicit model. Mainline's newer Codex, Claude
@@ -63,7 +244,7 @@ errors. Native approval requests were approved through Paperclip. The reviewer
 did not create or edit the page. This trial uses the previously qualified public
 package; it is additional live proof, not a new certification identity.
 
-## Qualified release candidate
+## Historical qualified release candidate — before generic cleanup
 
 Cursor admission is enabled in [PR #15075](https://github.com/paperclipai/paperclip/pull/15075).
 All ten local and ten fresh Daytona gates passed, including cleanup. The final
