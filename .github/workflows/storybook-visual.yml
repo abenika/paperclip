@@ -59,7 +59,13 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          # Dependency manifests can land before the automated lockfile refresh.
+          # Resolve without lifecycle scripts, then require a frozen install.
+          if ! pnpm install --frozen-lockfile; then
+            pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile
+            pnpm install --frozen-lockfile
+          fi
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

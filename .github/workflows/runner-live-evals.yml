@@ -146,7 +146,13 @@ jobs:
           node-version: 24
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          # Dependency manifests can land before the automated lockfile refresh.
+          # Resolve without lifecycle scripts, then require a frozen install.
+          if ! pnpm install --frozen-lockfile; then
+            pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile
+            pnpm install --frozen-lockfile
+          fi
 
       - name: Restore compatible weekly baseline
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5

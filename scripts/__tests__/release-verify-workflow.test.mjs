@@ -150,7 +150,7 @@ test("published canaries are gated by the exact-version onboarding browser smoke
   );
   assert.match(
     releaseWorkflow,
-    /smoke_canary_onboarding:[\s\S]*?Install test dependencies\n\s+run: pnpm install --frozen-lockfile/,
+    /smoke_canary_onboarding:[\s\S]*?Install test dependencies\n\s+run: \|[\s\S]*?pnpm install --frozen-lockfile/,
   );
   assert.doesNotMatch(
     releaseWorkflow.match(
@@ -456,3 +456,33 @@ test("direct protocol concurrency override only lowers the configured ceiling", 
     if (expected !== null) assert.equal(result.stdout, expected);
   }
 });
+
+for (const workflow of ["release.yml", "e2e.yml", "storybook-visual.yml", "runner-live-evals.yml"]) {
+  test(`${workflow} installs current or regenerated locks and stops on failed resolution`, () => {
+    const text = readWorkflow(workflow);
+    const block = text.match(/          # Dependency manifests can land[^\n]*\n(?:          [^\n]*\n)+/)?.[0];
+    assert.ok(block, "source workflow must handle the generated lockfile lag");
+    const script = block.split("\n").map(line => line.replace(/^ {10}/, "")).join("\n");
+    for (const scenario of ["current", "stale", "resolution-failed"]) {
+      const run = spawnSync("bash", ["-euo", "pipefail", "-c", `
+        attempts=0
+        pnpm() {
+          attempts=$((attempts + 1))
+          printf '%s\n' "$*"
+          if [ "$attempts" -eq 1 ] && [ "$SCENARIO" != current ]; then return 1; fi
+          if [ "$attempts" -eq 2 ] && [ "$SCENARIO" = resolution-failed ]; then return 19; fi
+          return 0
+        }
+        ${script}
+      `], { encoding: "utf8", env: { ...process.env, SCENARIO: scenario } });
+      assert.equal(run.status, scenario === "resolution-failed" ? 19 : 0, run.stderr);
+      const calls = run.stdout.trim().split("\n");
+      assert.equal(calls.length, scenario === "current" ? 1 : scenario === "stale" ? 3 : 2);
+      if (scenario !== "current") {
+        assert.match(calls[1], /--resolution-only/);
+        assert.match(calls[1], /--ignore-scripts/);
+      }
+      if (scenario !== "resolution-failed") assert.match(calls.at(-1), /--frozen-lockfile/);
+    }
+  });
+}
