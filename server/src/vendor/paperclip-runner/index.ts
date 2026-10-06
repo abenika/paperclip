@@ -123,6 +123,8 @@ export const parsePaperclipQuestionSet = runner.parsePaperclipQuestionSet;
 export const parsePaperclipQuestionResponse =
   runner.parsePaperclipQuestionResponse;
 export const resolveQualifiedAcpxProfile = runner.resolveQualifiedAcpxProfile;
+export const QUALIFIED_ACPX_PROFILES = runner.QUALIFIED_ACPX_PROFILES;
+export const QUALIFIED_ACPX_VERSION = runner.QUALIFIED_ACPX_VERSION;
 export const resolveSourceCodexHome = runner.resolveSourceCodexHome;
 export const validatePrpEvent = runner.validatePrpEvent;
 export const validatePrpStructuredRunResult =
