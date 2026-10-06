@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { CURSOR_PINNED_VERSION, cursorNativeDistributionSpec, verifyCursorInstallation } from "./cursor-installation.js";
-import { QUALIFIED_ACPX_PROFILES } from "./qualified-profiles.js";
+import { QUALIFIED_ACPX_PROFILES, type QualifiedAcpxProfile } from "./qualified-profiles.js";
 
 it("matches build materializer pins and launches only package-owned complete distributions", async () => {
   const manifest = JSON.parse(await readFile(new URL("../../../cursor-distributions.json", import.meta.url), "utf8"));
@@ -23,7 +23,7 @@ it("matches build materializer pins and launches only package-owned complete dis
 it("rejects profile substitutions before reading any native distribution", async () => {
   const base = { ...QUALIFIED_ACPX_PROFILES.cursor, qualificationModel: "explicit", reportedModelId: "explicit" };
   for (const profile of [QUALIFIED_ACPX_PROFILES.cursor, { ...base, agentServerVersion: "latest" }, { ...base, commandDigest: "forged" }, { ...base, reportedModelId: "different" }, { ...base, agentProfileVersion: 7 as const }, { ...base, agentProfileVersion: 8 as const }, { ...base, agentProfileVersion: 9 as const }]) {
-    await expect(verifyCursorInstallation(profile)).rejects.toThrow("exact pinned profile");
+    await expect(verifyCursorInstallation(profile as QualifiedAcpxProfile)).rejects.toThrow("exact pinned profile");
   }
 });
 

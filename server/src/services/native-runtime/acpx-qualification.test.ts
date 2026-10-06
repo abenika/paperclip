@@ -43,14 +43,15 @@ describe("host ACPX qualification admission", () => {
   it("does not alter existing qualified providers", () => {
     expect(resolveAcpxQualification({ ...provider, agent: "codex" } as typeof provider, authorize([]))).toBeUndefined();
   });
-  it.each(["claude", "grok", "cursor"])("keeps %s model selection open to native verification", (acpxAgent) => {
-    expect(resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent, model: "explicit-new-model" }))
+  it.each(["claude", "codex", "grok", "cursor"])("keeps %s model selection open to native verification", (acpxAgent) => {
+    const adapterConfig = { provider: "acpx", acpxAgent, model: "explicit-new-model" };
+    expect(resolvePaperclipRunnerProviderProfile(adapterConfig))
+      .toMatchObject({ acpxAgent, model: "explicit-new-model" });
+    expect(resolvePaperclipRunnerNativeProviderInput({ backend: "acpx_runtime", adapterConfig }))
       .toMatchObject({ acpxAgent, model: "explicit-new-model" });
   });
-  it("preserves exact Codex ACP admission and explicit selection", () => {
-    expect(resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent: "codex", model: "gpt-5.6-sol" }))
-      .toMatchObject({ acpxAgent: "codex", model: "gpt-5.6-sol" });
-    for (const model of [undefined, "", "different-model"]) {
+  it("requires an explicit Codex ACP selection", () => {
+    for (const model of [undefined, "", " "]) {
       expect(() => resolvePaperclipRunnerProviderProfile({ provider: "acpx", acpxAgent: "codex", model }))
         .toThrow(expect.objectContaining({ code: "paperclip_runner_acpx_model_unqualified" }));
     }

@@ -196,7 +196,6 @@ impl AcpxProviderDescriptor {
             || self.driver != ACPX_DRIVER_KIND
             || self.provider_version != QUALIFIED_ACPX_VERSION
             || self.acpx_version != QUALIFIED_ACPX_VERSION
-            || !expected.model_admission.accepts(&self.model)
             || self.model.trim().is_empty()
             || self.model.len() > 240
             || self.model.contains('\0')
@@ -2762,10 +2761,7 @@ mod tests {
             let mut alternative = descriptor(agent);
             alternative["model"] = json!("explicit-model-not-in-a-catalog");
             let alternative: AcpxProviderDescriptor = serde_json::from_value(alternative).unwrap();
-            assert_eq!(
-                alternative.validate_session(&context()).is_ok(),
-                !matches!(agent, "codex" | "pi")
-            );
+            alternative.validate_session(&context()).unwrap();
             for field in [
                 "agentServerPackage",
                 "agentServerVersion",

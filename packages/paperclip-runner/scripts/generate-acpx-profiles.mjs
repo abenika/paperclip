@@ -18,11 +18,7 @@ for (const [agent, profile] of entries) {
   assert.equal(profile.agentRuntimePackage === null, profile.agentRuntimeVersion === null);
   assert.match(profile.commandDigest, /^sha256:[a-f0-9]{64}$/);
   assert.equal(typeof profile.requiresProviderPolicy, "boolean");
-  assert.equal(typeof profile.qualification.model, "string");
-  assert.ok([undefined, "pending"].includes(profile.qualification.status));
-  assert.ok(["exact", "provider-verified"].includes(profile.modelAdmission.kind));
-  if (profile.modelAdmission.kind === "exact") assert.ok(profile.modelAdmission.model?.trim());
-  else assert.equal(profile.modelAdmission.model, undefined);
+  assert.ok([undefined, "pending"].includes(profile.qualificationStatus));
   for (const [name, version] of [[profile.agentServerPackage, profile.agentServerVersion], [profile.agentRuntimePackage, profile.agentRuntimeVersion]]) {
     if (name && Object.hasOwn(pkg.dependencies, name)) assert.equal(version, pkg.dependencies[name], `${agent}: installed dependency drift`);
   }
@@ -38,16 +34,13 @@ for (const distribution of Object.values(distributions.platforms)) assert.match(
 
 const quote = JSON.stringify;
 const profiles = Object.fromEntries(entries.map(([agent, declaration]) => {
-  const { modelAdmission, requiresProviderPolicy, qualification, ...runtime } = declaration;
+  const { requiresProviderPolicy, ...runtime } = declaration;
   return [agent, {
     driverKind: manifest.driverKind, protocolVersion: manifest.protocolVersion,
     acpxVersion: manifest.acpxVersion, agent, ...runtime,
-    ...(qualification.status ? { qualificationStatus: qualification.status } : {}),
-    qualificationModel: qualification.model, reportedModelId: qualification.model,
     permissionPolicy: "interactive",
   }];
 }));
-const policies = Object.fromEntries(entries.map(([agent, profile]) => [agent, profile.modelAdmission]));
 const header = "Generated from acpx-profiles.json and cursor-distributions.json. Do not edit.";
 const typescript = `// ${header}
 export const QUALIFIED_ACPX_VERSION = ${quote(manifest.acpxVersion)} as const;
@@ -55,8 +48,6 @@ export const ACPX_DRIVER_KIND = ${quote(manifest.driverKind)} as const;
 export const ACPX_DRIVER_PROTOCOL_VERSION = ${manifest.protocolVersion} as const;
 
 export const QUALIFIED_ACPX_PROFILE_DATA = ${JSON.stringify(profiles, null, 2)} as const;
-
-export const ACPX_MODEL_ADMISSION = ${JSON.stringify(policies, null, 2)} as const;
 
 export const CURSOR_DISTRIBUTION_PINS = ${JSON.stringify(Object.fromEntries(Object.entries(distributions.platforms).map(([platform, { closureSha256, executable, entrypoint }]) => [platform, { closureSha256, executable, entrypoint }])), null, 2)} as const;
 `;
@@ -66,28 +57,12 @@ pub(crate) const QUALIFIED_ACPX_VERSION: &str = ${quote(manifest.acpxVersion)};
 pub(crate) const ACPX_DRIVER_KIND: &str = ${quote(manifest.driverKind)};
 
 #[derive(Debug)]
-pub(crate) enum ModelAdmission {
-    Exact(&'static str),
-    ProviderVerified,
-}
-
-impl ModelAdmission {
-    pub(crate) fn accepts(&self, model: &str) -> bool {
-        match self {
-            Self::Exact(expected) => model == *expected,
-            Self::ProviderVerified => true,
-        }
-    }
-}
-
-#[derive(Debug)]
 pub(crate) struct AcpxReleaseProfile {
     pub agent_server_package: &'static str,
     pub agent_server_version: &'static str,
     pub agent_runtime_package: Option<&'static str>,
     pub agent_runtime_version: Option<&'static str>,
     pub command_digest: &'static str,
-    pub model_admission: ModelAdmission,
     pub requires_provider_policy: bool,
 }
 
@@ -100,7 +75,6 @@ ${entries.map(([agent, p]) => `        ${quote(agent)} => AcpxReleaseProfile {
             agent_runtime_version: ${option(p.agentRuntimeVersion)},
             command_digest:
                 ${quote(p.commandDigest)},
-            model_admission: ${p.modelAdmission.kind === "exact" ? `ModelAdmission::Exact(${quote(p.modelAdmission.model)})` : "ModelAdmission::ProviderVerified"},
             requires_provider_policy: ${p.requiresProviderPolicy},
         },`).join("\n")}
         _ => return None,

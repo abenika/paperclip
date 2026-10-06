@@ -32,9 +32,10 @@ export function cursorNativeDistributionSpec(
 export async function verifyCursorInstallation(profile: QualifiedAcpxProfile): Promise<VerifiedAcpxInstallation> {
   const trusted = QUALIFIED_ACPX_PROFILES.cursor;
   const modelFields = new Set(["qualificationModel", "reportedModelId"]);
-  if (Object.keys(profile).some(key => !Object.hasOwn(trusted, key))
-    || Object.entries(trusted).some(([key, value]) => !modelFields.has(key) && profile[key as keyof QualifiedAcpxProfile] !== value)
-    || !profile.qualificationModel.trim() || profile.reportedModelId !== profile.qualificationModel) {
+  if (Object.keys(profile).some(key => !modelFields.has(key) && !Object.hasOwn(trusted, key))
+    || Object.entries(trusted).some(([key, value]) => profile[key as keyof QualifiedAcpxProfile] !== value)
+    || typeof profile.qualificationModel !== "string" || !profile.qualificationModel.trim()
+    || profile.reportedModelId !== profile.qualificationModel) {
     throw new Error("Cursor installation requires the exact pinned profile and an explicit model");
   }
   const installation = await verifyNativeAcpxInstallation(cursorNativeDistributionSpec());

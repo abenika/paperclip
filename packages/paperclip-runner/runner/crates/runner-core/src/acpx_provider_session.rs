@@ -1,4 +1,4 @@
-use crate::generated_acpx_profiles::{acpx_release_profile, ModelAdmission};
+use crate::generated_acpx_profiles::acpx_release_profile;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -87,14 +87,6 @@ impl AcpxProviderSessionConfig {
         let profile = acpx_release_profile(&self.agent).ok_or_else(|| {
             LocalRunnerError::invalid("ACPX agent must name a known immutable profile")
         })?;
-        if let ModelAdmission::Exact(qualified_model) = profile.model_admission {
-            if self.model != qualified_model {
-                return Err(LocalRunnerError::invalid(format!(
-                    "ACPX {} profile requires exact model {qualified_model}",
-                    self.agent
-                )));
-            }
-        }
         validate_text(&self.model, MAX_MODEL_CHARS, "ACPX model")?;
         if let Some(mode) = self.mode.as_deref() {
             validate_text(mode, MAX_ID_CHARS, "ACPX provider mode")?;
@@ -1637,6 +1629,28 @@ mod mode_tests {
             permission_mode: Some(AcpxPermissionMode::ApproveReads),
             mode: Some("plan".to_owned()),
             provider_lifetime_fence_candidates: [60_001, 60_002, 60_003],
+        }
+    }
+    #[test]
+    fn model_is_explicit_and_provider_verified_for_every_agent() {
+        let mut config = config();
+        for agent in ["claude", "codex", "pi", "grok", "cursor", "copilot"] {
+            config.agent = agent.to_owned();
+            config.model = "custom/model[context=272k,reasoning=medium]".to_owned();
+            config.validate().unwrap();
+            assert_eq!(
+                session_open_params(&config, &[])["model"],
+                json!(config.model)
+            );
+            for invalid in [
+                "".to_owned(),
+                " ".to_owned(),
+                "x".repeat(241),
+                "model\0".to_owned(),
+            ] {
+                config.model = invalid;
+                assert!(config.validate().is_err());
+            }
         }
     }
     #[test]

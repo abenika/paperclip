@@ -32,15 +32,24 @@ duplicated model rules in Rust session validation, and independent pins in the
 TypeScript profile registry, provider-pack builder, server pack verifier, and
 Cursor installation code. `packages/paperclip-runner/acpx-profiles.json` now owns
 the release/profile declarations; generated TypeScript and named Rust structs
-share them. Model admission is explicit and separate from qualification examples.
+share them. Following review, all ACPX harnesses now accept any explicit model ID;
+the native provider must acknowledge that exact selection before prompting.
+The release manifest and generated runtime declarations contain no model names
+or model allowlists. Qualification choices live only in evaluation fixtures.
 Server admission calls the same resolver. Existing Claude/Grok product defaults
 are named separately; Cursor and Codex ACP still require explicit selection.
 Cursor closure pins are generated from the existing distribution manifest.
 Build and typecheck reject declaration drift, including mismatches with the
 Cursor release attestation and installed dependencies.
 
-All provider versions, digests, model acceptance rules, and recovery identity
-fields retain their previous meaning. A regression check pins the pre-cleanup
+The former Codex ACP and Pi single-model restrictions are removed, including
+the redundant restriction in the developer test-drive UI and server. Provider
+rejections and effective-model mismatches still fail without a fallback. Pi and
+Copilot remain pending providers; their operator-scoped qualification gates are
+unchanged. This change does not claim live qualification of additional models.
+
+All provider versions, digests, and recovery identity fields retain their previous
+meaning. A regression check pins the pre-cleanup
 Cursor recovery digest. Historical rejection fixtures and evidence keep their
 original identities. Cursor launch flags, credential names, and native extension
 translation remain provider-adapter responsibilities; generic mode, lifecycle,

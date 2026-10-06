@@ -3,28 +3,12 @@ pub(crate) const QUALIFIED_ACPX_VERSION: &str = "0.13.1";
 pub(crate) const ACPX_DRIVER_KIND: &str = "acpx_runtime";
 
 #[derive(Debug)]
-pub(crate) enum ModelAdmission {
-    Exact(&'static str),
-    ProviderVerified,
-}
-
-impl ModelAdmission {
-    pub(crate) fn accepts(&self, model: &str) -> bool {
-        match self {
-            Self::Exact(expected) => model == *expected,
-            Self::ProviderVerified => true,
-        }
-    }
-}
-
-#[derive(Debug)]
 pub(crate) struct AcpxReleaseProfile {
     pub agent_server_package: &'static str,
     pub agent_server_version: &'static str,
     pub agent_runtime_package: Option<&'static str>,
     pub agent_runtime_version: Option<&'static str>,
     pub command_digest: &'static str,
-    pub model_admission: ModelAdmission,
     pub requires_provider_policy: bool,
 }
 
@@ -37,7 +21,6 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_version: Some("1.0.13"),
             command_digest:
                 "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
-            model_admission: ModelAdmission::ProviderVerified,
             requires_provider_policy: false,
         },
         "pi" => AcpxReleaseProfile {
@@ -47,7 +30,6 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_version: Some("0.84.2"),
             command_digest:
                 "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f",
-            model_admission: ModelAdmission::Exact("openrouter/deepseek/deepseek-v4-flash-0731"),
             requires_provider_policy: true,
         },
         "cursor" => AcpxReleaseProfile {
@@ -57,7 +39,6 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_version: None,
             command_digest:
                 "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-            model_admission: ModelAdmission::ProviderVerified,
             requires_provider_policy: true,
         },
         "copilot" => AcpxReleaseProfile {
@@ -67,7 +48,6 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_version: None,
             command_digest:
                 "sha256:b18c01603dd0169d233140709cfaa8bf5304a03cf5de78ca4f625f30013e8457",
-            model_admission: ModelAdmission::ProviderVerified,
             requires_provider_policy: true,
         },
         "claude" => AcpxReleaseProfile {
@@ -77,7 +57,6 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_version: Some("0.3.286"),
             command_digest:
                 "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
-            model_admission: ModelAdmission::ProviderVerified,
             requires_provider_policy: false,
         },
         "codex" => AcpxReleaseProfile {
@@ -87,7 +66,6 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_version: Some("0.160.0"),
             command_digest:
                 "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3",
-            model_admission: ModelAdmission::Exact("gpt-5.6-sol"),
             requires_provider_policy: false,
         },
         _ => return None,

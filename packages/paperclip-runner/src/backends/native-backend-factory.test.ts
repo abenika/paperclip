@@ -1,4 +1,4 @@
-import { QUALIFIED_ACPX_PROFILES, resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
+import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -507,7 +507,7 @@ describe("native backend factory", () => {
   it.each(["pi", "cursor", "copilot"] as const)("constructs %s identity on the supplied runnerd transport without starting a provider", async agent => {
     const input = acpxExecution();
     if (input.provider.kind !== "acpx") throw new Error("invalid fixture");
-    const model = agent === "pi" ? QUALIFIED_ACPX_PROFILES.pi.qualificationModel : "explicit-fixture-model";
+    const model = "explicit-fixture-model";
     Object.assign(input.provider, { agent, model, profile: resolveQualifiedAcpxProfile(agent, model) });
     const backend = createNativeSessionBackend(input, {
       codexTransportFactory: () => { throw new Error("descriptor must not launch the transport"); },
@@ -532,7 +532,7 @@ describe("native backend factory", () => {
   it.each(["pi", "copilot"] as const)("rejects unqualified %s direct execution even with an exact persisted profile", agent => {
     const input = acpxExecution();
     if (input.provider.kind !== "acpx") throw new Error("invalid fixture");
-    const model = agent === "pi" ? QUALIFIED_ACPX_PROFILES.pi.qualificationModel : "explicit-fixture-model";
+    const model = "explicit-fixture-model";
     const profile = resolveQualifiedAcpxProfile(agent, model);
     Object.assign(input.provider, { agent, model, profile });
     expect(() => createNativeSessionBackend(input, { acpxRuntimeDirectory: "/runtime",

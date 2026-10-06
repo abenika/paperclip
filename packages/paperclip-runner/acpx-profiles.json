@@ -11,13 +11,7 @@
       "agentRuntimePackage": "native:grok",
       "agentRuntimeVersion": "1.0.13",
       "commandDigest": "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
-      "modelAdmission": {
-        "kind": "provider-verified"
-      },
-      "requiresProviderPolicy": false,
-      "qualification": {
-        "model": "grok-4.7"
-      }
+      "requiresProviderPolicy": false
     },
     "pi": {
       "agentProfileVersion": 1,
@@ -26,14 +20,7 @@
       "agentRuntimePackage": "@earendil-works/pi-coding-agent",
       "agentRuntimeVersion": "0.84.2",
       "commandDigest": "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f",
-      "modelAdmission": {
-        "kind": "exact",
-        "model": "openrouter/deepseek/deepseek-v4-flash-0731"
-      },
-      "requiresProviderPolicy": true,
-      "qualification": {
-        "model": "openrouter/deepseek/deepseek-v4-flash-0731"
-      }
+      "requiresProviderPolicy": true
     },
     "cursor": {
       "agentProfileVersion": 11,
@@ -42,13 +29,7 @@
       "agentRuntimePackage": null,
       "agentRuntimeVersion": null,
       "commandDigest": "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-      "modelAdmission": {
-        "kind": "provider-verified"
-      },
-      "requiresProviderPolicy": true,
-      "qualification": {
-        "model": ""
-      }
+      "requiresProviderPolicy": true
     },
     "copilot": {
       "agentProfileVersion": 2,
@@ -57,14 +38,8 @@
       "agentRuntimePackage": null,
       "agentRuntimeVersion": null,
       "commandDigest": "sha256:b18c01603dd0169d233140709cfaa8bf5304a03cf5de78ca4f625f30013e8457",
-      "modelAdmission": {
-        "kind": "provider-verified"
-      },
       "requiresProviderPolicy": true,
-      "qualification": {
-        "model": "",
-        "status": "pending"
-      }
+      "qualificationStatus": "pending"
     },
     "claude": {
       "agentProfileVersion": 1,
@@ -73,13 +48,7 @@
       "agentRuntimePackage": "@anthropic-ai/claude-agent-sdk",
       "agentRuntimeVersion": "0.3.286",
       "commandDigest": "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
-      "modelAdmission": {
-        "kind": "provider-verified"
-      },
-      "requiresProviderPolicy": false,
-      "qualification": {
-        "model": "claude-sonnet-5"
-      }
+      "requiresProviderPolicy": false
     },
     "codex": {
       "agentProfileVersion": 1,
@@ -88,14 +57,7 @@
       "agentRuntimePackage": "@openai/codex",
       "agentRuntimeVersion": "0.160.0",
       "commandDigest": "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3",
-      "modelAdmission": {
-        "kind": "exact",
-        "model": "gpt-5.6-sol"
-      },
-      "requiresProviderPolicy": false,
-      "qualification": {
-        "model": "gpt-5.6-sol"
-      }
+      "requiresProviderPolicy": false
     }
   }
 }

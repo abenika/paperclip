@@ -6,30 +6,23 @@ import {
 } from "./qualified-profiles.js";
 
 describe("qualified ACPX profiles", () => {
-  it("binds each agent to one immutable package and model declaration", () => {
-    for (const agent of ["pi", "claude", "codex", "grok"] as const) {
+  it("binds each agent to an immutable runtime without prescribing a model", () => {
+    for (const agent of ["pi", "claude", "codex", "grok", "cursor", "copilot"] as const) {
       const profile = QUALIFIED_ACPX_PROFILES[agent];
       expect(profile.agent).toBe(agent);
       expect(profile.commandDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
       expect(Object.isFrozen(profile)).toBe(true);
-      expect(
-        resolveQualifiedAcpxProfile(agent, profile.qualificationModel),
-      ).toEqual(profile);
+      expect(profile).not.toHaveProperty("qualificationModel");
+      expect(profile).not.toHaveProperty("reportedModelId");
     }
   });
 
-  it.each(["claude", "grok", "cursor", "copilot"] as const)("lets %s verify an explicit model absent from the catalog", (agent) => {
-    const model = "custom-model-not-in-catalog";
+  it.each(["claude", "codex", "pi", "grok", "cursor", "copilot"] as const)("lets %s verify an explicit model absent from the catalog", (agent) => {
+    const model = "custom/model[context=272k,reasoning=medium]";
     expect(resolveQualifiedAcpxProfile(agent, model)).toMatchObject({
       qualificationModel: model, reportedModelId: model,
       commandDigest: QUALIFIED_ACPX_PROFILES[agent].commandDigest,
     });
-  });
-
-  it.each(["codex", "pi"] as const)("preserves the existing exact-model restriction for %s", (agent) => {
-    expect(() =>
-      resolveQualifiedAcpxProfile(agent, "some-other-model"),
-    ).toThrow("requires exact model");
   });
 
   it.each(["claude", "codex", "grok", "cursor", "copilot", "pi"] as const)("never selects a qualification model by default for %s", (agent) => {

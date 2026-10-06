@@ -15,8 +15,6 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentRuntimePackage": "native:grok",
     "agentRuntimeVersion": "1.0.13",
     "commandDigest": "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
-    "qualificationModel": "grok-4.7",
-    "reportedModelId": "grok-4.7",
     "permissionPolicy": "interactive"
   },
   "pi": {
@@ -30,8 +28,6 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentRuntimePackage": "@earendil-works/pi-coding-agent",
     "agentRuntimeVersion": "0.84.2",
     "commandDigest": "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f",
-    "qualificationModel": "openrouter/deepseek/deepseek-v4-flash-0731",
-    "reportedModelId": "openrouter/deepseek/deepseek-v4-flash-0731",
     "permissionPolicy": "interactive"
   },
   "cursor": {
@@ -45,8 +41,6 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentRuntimePackage": null,
     "agentRuntimeVersion": null,
     "commandDigest": "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-    "qualificationModel": "",
-    "reportedModelId": "",
     "permissionPolicy": "interactive"
   },
   "copilot": {
@@ -61,8 +55,6 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentRuntimeVersion": null,
     "commandDigest": "sha256:b18c01603dd0169d233140709cfaa8bf5304a03cf5de78ca4f625f30013e8457",
     "qualificationStatus": "pending",
-    "qualificationModel": "",
-    "reportedModelId": "",
     "permissionPolicy": "interactive"
   },
   "claude": {
@@ -76,8 +68,6 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentRuntimePackage": "@anthropic-ai/claude-agent-sdk",
     "agentRuntimeVersion": "0.3.286",
     "commandDigest": "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
-    "qualificationModel": "claude-sonnet-5",
-    "reportedModelId": "claude-sonnet-5",
     "permissionPolicy": "interactive"
   },
   "codex": {
@@ -91,32 +81,7 @@ export const QUALIFIED_ACPX_PROFILE_DATA = {
     "agentRuntimePackage": "@openai/codex",
     "agentRuntimeVersion": "0.160.0",
     "commandDigest": "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3",
-    "qualificationModel": "gpt-5.6-sol",
-    "reportedModelId": "gpt-5.6-sol",
     "permissionPolicy": "interactive"
-  }
-} as const;
-
-export const ACPX_MODEL_ADMISSION = {
-  "grok": {
-    "kind": "provider-verified"
-  },
-  "pi": {
-    "kind": "exact",
-    "model": "openrouter/deepseek/deepseek-v4-flash-0731"
-  },
-  "cursor": {
-    "kind": "provider-verified"
-  },
-  "copilot": {
-    "kind": "provider-verified"
-  },
-  "claude": {
-    "kind": "provider-verified"
-  },
-  "codex": {
-    "kind": "exact",
-    "model": "gpt-5.6-sol"
   }
 } as const;
 

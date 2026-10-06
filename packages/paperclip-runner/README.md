@@ -43,21 +43,22 @@ authentication repairs retain their existing fresh-session recovery behavior.
 
 ## ACPX release declarations
 
-`acpx-profiles.json` owns the package versions, command/profile digests, model
-admission policies, and required execution policies used by TypeScript and Rust.
+`acpx-profiles.json` owns the package versions, command/profile digests, and
+required execution policies used by TypeScript and Rust. It contains no models.
 After changing it, run `pnpm --filter @paperclipai/paperclip-runner generate:acpx-profiles`.
 Normal build and typecheck reject stale generated declarations. Generation also
 checks installed dependency pins and agreement with Cursor's distribution manifest
 and immutable release attestation (`cursor-contract.json`). Cursor's per-platform
 closure pins are generated from `cursor-distributions.json`.
 
-Model admission is separate from qualification examples. `provider-verified`
-requires an explicit caller-selected model and native verification; `exact`
-retains the existing restriction for the Codex ACP and Pi profiles. Qualification
-examples are neither a model catalog nor defaults. The legacy snapshot field
-`qualificationModel` contains the selected model after resolution; its serialized
-name is retained to preserve recovery identities. Historical profile fixtures
-remain immutable evidence, not release declarations.
+Every ACPX harness accepts an explicit caller-selected model without a Paperclip
+model allowlist. The adapter sends that ID unchanged and verifies the provider's
+effective model before prompting. An incomplete discovery catalog does not block
+selection; a provider rejection or mismatch fails without choosing a fallback.
+Qualification model selections live in test catalogs, separately from optional
+product defaults. The legacy resolved snapshot field `qualificationModel` contains
+the caller's selected model; its serialized name preserves recovery identities.
+Historical profile fixtures remain immutable evidence, not release declarations.
 
 ## Public package surfaces
 

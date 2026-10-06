@@ -30,6 +30,7 @@ import { models as claudeModels } from "../../packages/adapters/claude-local/src
 import { DEFAULT_KIMI_LOCAL_MODEL } from "../../packages/adapters/kimi-local/src/index.js";
 import { DEFAULT_GROK_LOCAL_MODEL } from "../../packages/adapters/grok-local/src/index.js";
 import { QUALIFIED_ACPX_PROFILES } from "../../packages/paperclip-runner/src/drivers/acpx/qualified-profiles.js";
+import { ACPX_QUALIFICATION_MODELS } from "../acpx-qualification-models.js";
 import { QUALIFIED_OPENCODE_MODEL } from "../../packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.js";
 import { CREDENTIAL_NAMES } from "./types.js";
 import { createGitStreamingTask } from "./daytona-git-streaming.js";
@@ -311,7 +312,7 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
     label: "Runner ACPX Claude",
     provider: "acpx",
     acpxAgent: "claude",
-    model: QUALIFIED_ACPX_PROFILES.claude.qualificationModel,
+    model: ACPX_QUALIFICATION_MODELS.claude,
     credential: "ANTHROPIC_API_KEY",
   }),
   nativeProfile({
@@ -319,7 +320,7 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
     label: "Runner Grok Build",
     provider: "acpx",
     acpxAgent: "grok",
-    model: QUALIFIED_ACPX_PROFILES.grok.qualificationModel,
+    model: ACPX_QUALIFICATION_MODELS.grok,
     credential: "XAI_API_KEY",
   }),
   nativeProfile({
@@ -327,7 +328,7 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
     label: "Runner ACPX Codex",
     provider: "acpx",
     acpxAgent: "codex",
-    model: QUALIFIED_ACPX_PROFILES.codex.qualificationModel,
+    model: ACPX_QUALIFICATION_MODELS.codex,
     credential: "OPENAI_API_KEY",
   }),
 ] as const;
@@ -348,7 +349,7 @@ export const extendedHarnessProfiles: readonly RunnerProfileFixture[] = [
   }),
   nativeProfile({
     id: "runner-acpx-pi", label: "Runner Pi (candidate)", provider: "acpx", acpxAgent: "pi",
-    qualificationCandidate: "pi", credential: "OPENROUTER_API_KEY", model: QUALIFIED_ACPX_PROFILES.pi.qualificationModel,
+    qualificationCandidate: "pi", credential: "OPENROUTER_API_KEY", model: ACPX_QUALIFICATION_MODELS.pi,
     modelQualification: { source: "candidate_runner_profile", qualificationId: "pi:0.0.33:0.84.2:openrouter" },
   }),
 ];
@@ -1196,7 +1197,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: [nativeProfile({
       id: "runner-acpx-grok-subscription", label: "Grok Build Subscription",
       provider: "acpx", acpxAgent: "grok",
-      model: QUALIFIED_ACPX_PROFILES.grok.qualificationModel,
+      model: ACPX_QUALIFICATION_MODELS.grok,
       credential: "GROK_AUTH_JSON",
     })],
     environments: [localEnvironment, daytonaWarmEnvironment],
