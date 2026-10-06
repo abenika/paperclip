@@ -1,6 +1,15 @@
 # Cursor ACP capability inventory
 
-Current release candidate (2026-10-04): **Cursor profile v11 passed local and Daytona qualification**.
+Current source (2026-10-06): **Cursor profile v13 includes the model-selection correction**.
+The bundled ACPX runtime forwards unlisted model IDs unchanged, verifies model
+selection responses, and reapplies a selected model when a loaded session reports
+another model. Its 14 package tests exercise startup and reconnect through a real
+ACPX manager with offline ACP fixtures. Cursor activity projection now belongs to
+its adapter. The release attestation binds the updated ACPX patch; older profile
+identities cannot be reused for new launches. Committed plan waits remain readable.
+The live evidence below belongs to profile v11; it does not certify v13 artifacts.
+
+Historical release candidate (2026-10-04): **Cursor profile v11 passed local and Daytona qualification**.
 It ports snapshot `22c78242a4e0c2369fecf0c2dc4e7600fbad6706` onto mainline
 `dd868ed125cd709506dd9b29fca640a44d580501`, preserving newer recovery and owned
 warm agent-file handoff. The [readiness checklist](../plans/2026-10-03-cursor-production-readiness.md)

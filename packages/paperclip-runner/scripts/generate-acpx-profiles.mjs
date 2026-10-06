@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,14 @@ assert.equal(manifest.profiles.cursor.agentServerVersion, contract.vendor);
 assert.equal(manifest.profiles.cursor.agentProfileVersion, contract.profileVersion);
 assert.equal(manifest.profiles.cursor.commandDigest, contract.commandDigest);
 assert.equal(distributions.patchVersion, contract.nativePatch);
+const canonicalJson = value => value && typeof value === "object"
+  ? Array.isArray(value) ? `[${value.map(canonicalJson).join(",")}]`
+    : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`
+  : JSON.stringify(value);
+const { commandDigest, ...attestation } = contract;
+assert.equal(commandDigest, `sha256:${createHash("sha256").update(canonicalJson(attestation)).digest("hex")}`);
+assert.equal(contract.acpxPatchSha256, createHash("sha256")
+  .update(await readFile(new URL("../../patches/acpx@0.13.1.patch", root))).digest("hex"));
 for (const distribution of Object.values(distributions.platforms)) assert.match(distribution.closureSha256, /^[a-f0-9]{64}$/);
 
 const quote = JSON.stringify;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseProviderMode } from "../contracts/provider-mode.js";
-import { cursorPlanToolIdentity, cursorToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
+import { acpxProfileActivity, type AcpxActivityAdapter, type AcpxToolEvidence } from "../drivers/acpx/profile-activity.js";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import { deliverAcpxResponse, requireAcpxResponseDelivery } from "../drivers/acpx/response-delivery.js";
@@ -63,10 +63,8 @@ import {
   type AcpxSidecarResponse,
 } from "../drivers/acpx/sidecar-protocol.js";
 import { safeAcpxLocations } from "./acpx-sidecar-locations.js";
-import { createCursorToolEvidence, type CursorToolEvidence } from "../drivers/acpx/cursor-tool-evidence.js";
 import {
   persistedAcpxTurnUsage,
-  persistedCursorUsageNotice,
   acpxUsageEstimateNotice,
   qualifiedAcpxUsageBreakdown,
 } from "../drivers/acpx/usage-accounting.js";
@@ -373,8 +371,8 @@ async function dispatch(
       waitForInput: (input, context) => waitForExtensionInput(currentTurnId, input, context),
       emit: event => emit("runtime.rich_event", { ...event }, currentTurnId),
     });
-    const evidenceFactory = openParams!.agent === "cursor" ? createCursorToolEvidence : undefined;
-    const toolEvidence = evidenceFactory?.({
+    const activity = acpxProfileActivity(activeAgent);
+    const toolEvidence = activity.createToolEvidence?.({
       sessionId: activeHost.identity().backendSessionId, turnId: currentTurnId,
       workingDirectory: openParams!.workingDirectory,
       active: () => turnId === currentTurnId && host === activeHost,
@@ -398,7 +396,7 @@ async function dispatch(
       turnId = null;
       throw error;
     }
-    void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain, toolEvidence);
+    void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain, activity, toolEvidence);
     // Warm sessions may defer initialize until their first prompt. Publish only
     // the capabilities of that live initialized connection, never old disk state.
     await runtimeTurn.promptStarted;
@@ -609,7 +607,8 @@ async function pumpTurn(
   activeHost: AcpxRuntimeHost,
   usageBefore: unknown,
   drainExtensions: () => Promise<void>,
-  toolEvidence?: CursorToolEvidence,
+  activity: AcpxActivityAdapter,
+  toolEvidence?: AcpxToolEvidence,
 ): Promise<void> {
   let terminal: Record<string, unknown>;
   try {
@@ -634,8 +633,8 @@ async function pumpTurn(
     try {
       const usageAfter = await readSidecarHostStatusWithin(activeHost);
       try {
-        const cursorNotice = persistedCursorUsageNotice(usageBefore, usageAfter, runtimeTurn.requestId, openParams?.agent ?? null, `${currentTurnId}:cursor-native-usage`);
-        if (cursorNotice) { validateAcpxRichEvent(cursorNotice); emit("runtime.rich_event", { ...cursorNotice }, currentTurnId); }
+        const notice = activity.usageNotice?.(usageBefore, usageAfter, runtimeTurn.requestId, currentTurnId);
+        if (notice) { validateAcpxRichEvent(notice); emit("runtime.rich_event", { ...notice }, currentTurnId); }
       } catch {
         // Optional diagnostics must not suppress standard usage or terminal settlement.
       }
@@ -785,7 +784,7 @@ async function waitForPermission(
   agent: QualifiedAcpxAgent,
   request: AcpPermissionRequest,
   context: { signal: AbortSignal; responseDelivery?: Promise<void> },
-  toolEvidence?: CursorToolEvidence,
+  toolEvidence?: AcpxToolEvidence,
 ): Promise<AcpPermissionDecision> {
   const { signal } = context;
   if (turnId !== activeTurnId || signal.aborted || permissions.size >= MAX_PENDING_INPUTS) {
@@ -872,7 +871,7 @@ async function waitForExtensionInput(
 ): Promise<Record<string, unknown>> {
   if (turnId !== activeTurnId || context.signal.aborted || inputs.size >= MAX_PENDING_INPUTS) return input.cancel();
   const responseDelivery = requireAcpxResponseDelivery(context);
-  const toolCallId = cursorPlanToolIdentity(openParams?.agent ?? initializedAgent, input);
+  const toolCallId = acpxProfileActivity(openParams?.agent ?? initializedAgent).inputToolIdentity?.(input);
   const requestId = stableRequestId(activeTurnId, ++requestSequence, context.requestId);
   return await new Promise((settle) => {
     const abort = () => {
@@ -1448,9 +1447,9 @@ function stableRequestId(
 }
 
 function stableProviderIdentity(value: string, kind: string): string {
-  // Cursor alone uses the richer permission/evidence identity policy. Other
-  // providers and message identities retain their existing sidecar mapping.
-  if (kind === "tool" && openParams?.agent === "cursor") return cursorToolIdentity(value);
+  // Adapters normalize native tool IDs before the shared sidecar bound.
+  const activity = acpxProfileActivity(openParams?.agent ?? initializedAgent);
+  if (kind === "tool" && activity.toolIdentity) return activity.toolIdentity(value);
   if (Buffer.byteLength(value) <= 240 && !/[\u0000-\u001f\u007f]/.test(value)) {
     return value;
   }

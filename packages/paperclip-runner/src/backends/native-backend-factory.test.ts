@@ -101,35 +101,7 @@ function acpxExecution(
       agent,
       model: "explicit-test-model",
       permissionPolicy: "interactive",
-      profile: {
-        driverKind: "acpx_runtime",
-        protocolVersion: 1,
-        acpxVersion: "0.13.1",
-        agent,
-        agentProfileVersion: 1,
-        agentServerPackage:
-          agent === "codex"
-            ? "@agentclientprotocol/codex-acp"
-            : agent === "pi"
-              ? "pi-acp"
-              : "@agentclientprotocol/claude-agent-acp",
-        agentServerVersion:
-          agent === "codex" ? "1.6.2" : agent === "pi" ? "0.0.33" : "0.73.0",
-        agentRuntimePackage:
-          agent === "pi"
-            ? "@earendil-works/pi-coding-agent"
-            : agent === "codex"
-              ? "@openai/codex"
-              : "@anthropic-ai/claude-agent-sdk",
-        agentRuntimeVersion:
-          agent === "pi" ? "0.84.2" : agent === "codex" ? "0.160.0" : "0.3.286",
-        commandDigest:
-          agent === "codex"
-            ? "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3"
-            : agent === "pi"
-              ? "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f"
-              : "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
-      },
+      profile: resolveQualifiedAcpxProfile(agent, "explicit-test-model"),
     },
   };
 }

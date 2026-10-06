@@ -59,6 +59,11 @@ Qualification model selections live in test catalogs, separately from optional
 product defaults. The legacy resolved snapshot field `qualificationModel` contains
 the caller's selected model; its serialized name preserves recovery identities.
 Historical profile fixtures remain immutable evidence, not release declarations.
+The bundled ACPX package tests exercise unlisted model selection, rejection,
+exact acknowledgement, and replay on a loaded connection. Catalog membership
+and Cursor model-alias expansion do not determine the selected model.
+Provider activity adapters own native tool identities, evidence, and diagnostic
+usage projection; the shared driver and sidecar consume those hooks.
 
 ## Public package surfaces
 

@@ -3,7 +3,7 @@ import type { QualifiedAcpxAgent } from "./qualified-profiles.js";
 export interface AcpxCapabilityProfile {
   readonly displayName: string;
   readonly qualification: "qualified" | "pending";
-  readonly models: "explicit-provider-verified" | "exact-qualified";
+  readonly models: "explicit-provider-verified";
   readonly permissions: "runner-policy" | "interactive";
   readonly questions: "form" | "cursor-extension" | "semantic-only" | "not-exposed";
   readonly plans: "native" | "cursor-decision" | "semantic-only";
@@ -29,7 +29,7 @@ export const ACPX_CAPABILITY_PROFILES: Readonly<Record<QualifiedAcpxAgent, AcpxC
   },
   codex: {
     toolRefreshOnResume: true,
-    displayName: "Codex", qualification: "qualified", models: "exact-qualified",
+    displayName: "Codex", qualification: "qualified", models: "explicit-provider-verified",
     permissions: "runner-policy", questions: "form", plans: "native", tools: "authenticated-mcp",
     recovery: "session-load", usage: "reported", steering: "unsupported", followUp: "controller-queue",
     artifacts: "policy_disabled", extensionRequests: [], extensionNotifications: [],
@@ -57,7 +57,7 @@ export const ACPX_CAPABILITY_PROFILES: Readonly<Record<QualifiedAcpxAgent, AcpxC
     extensionNotifications: ["github.com/copilot/sessionEvent"],
   },
   pi: {
-    displayName: "Pi", qualification: "pending", models: "exact-qualified",
+    displayName: "Pi", qualification: "pending", models: "explicit-provider-verified",
     permissions: "interactive", questions: "form", plans: "semantic-only", tools: "owned-extension",
     recovery: "session-load", usage: "reported", steering: "owned-extension-pending", followUp: "owned-extension-pending",
     artifacts: "references-pending", extensionRequests: [], extensionNotifications: [],

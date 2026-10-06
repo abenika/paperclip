@@ -1,6 +1,5 @@
 import { isProviderMode } from "../../contracts/provider-mode.js";
-import { cursorPlanToolIdentity, cursorToolExecutionId } from "./cursor-plan-tool-identity.js";
-import { createCursorToolEvidence, type CursorToolEvidence } from "./cursor-tool-evidence.js";
+import { acpxProfileActivity, type AcpxActivityAdapter, type AcpxToolEvidence } from "./profile-activity.js";
 import { requireAcpxResponseDelivery } from "./response-delivery.js";
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
 import { createHash, randomBytes } from "node:crypto";
@@ -86,7 +85,7 @@ import {
 } from "./runtime-sandbox.js";
 
 import { AcpxTurnControlLedger, parseAcpxTurnControl, type AcpxTurnControlMode } from "./turn-controls.js";
-import { acpxUsageEstimateNotice, persistedAcpxTurnUsage, persistedCursorUsageNotice } from "./usage-accounting.js";
+import { acpxUsageEstimateNotice, persistedAcpxTurnUsage } from "./usage-accounting.js";
 
 const MAX_BUFFERED_EVENTS = 512;
 const TERMINAL_EVENT_RESERVE = 3;
@@ -902,8 +901,8 @@ class CodexAcpxSession implements HarnessSession {
         }
       },
     });
-    const evidenceFactory = this.#agent === "cursor" ? createCursorToolEvidence : undefined;
-    const toolEvidence = evidenceFactory?.({
+    const activity = acpxProfileActivity(this.#agent);
+    const toolEvidence = activity.createToolEvidence?.({
       sessionId: this.#host.identity().backendSessionId, turnId, workingDirectory: this.#input.workingDirectory,
       active: () => this.#activeTurnId === turnId && !this.#closingStarted,
       emit: event => {
@@ -935,7 +934,7 @@ class CodexAcpxSession implements HarnessSession {
       );
       throw error;
     }
-    const pump = this.#pumpTurn(turnId, turn, extensions.drain, usageBefore, toolEvidence);
+    const pump = this.#pumpTurn(turnId, turn, extensions.drain, usageBefore, activity, toolEvidence);
     this.#activePump = pump;
     void pump
       .finally(() => {
@@ -1440,7 +1439,7 @@ class CodexAcpxSession implements HarnessSession {
       .catch(() => undefined);
   }
 
-  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>, usageBefore: unknown, toolEvidence?: CursorToolEvidence): Promise<void> {
+  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>, usageBefore: unknown, activity: AcpxActivityAdapter, toolEvidence?: AcpxToolEvidence): Promise<void> {
     try {
       let index = 0;
       const normalizeToolEvent =
@@ -1449,16 +1448,16 @@ class CodexAcpxSession implements HarnessSession {
         ? createGrokMessageNormalizer<AcpRuntimeEvent>() : (event: AcpRuntimeEvent) => event;
       for await (const event of turn.events) {
         toolEvidence?.tool(event);
-        const activity = this.#agent === "cursor" && event.type === "tool_call" && typeof event.toolCallId === "string"
-          ? { ...event, toolCallId: cursorToolExecutionId(event.toolCallId) } : event;
-        this.#mapRuntimeEvent(normalizeMessage(normalizeToolEvent(activity)), turnId, ++index);
+        const projected = activity.toolExecutionId && event.type === "tool_call" && typeof event.toolCallId === "string"
+          ? { ...event, toolCallId: activity.toolExecutionId(event.toolCallId) } : event;
+        this.#mapRuntimeEvent(normalizeMessage(normalizeToolEvent(projected)), turnId, ++index);
       }
       const result = await turn.result;
       await drainExtensions();
       const usageAfter = await readUsageStatus(this.#host);
       // Diagnostic projection failures cannot replace the provider's terminal result.
       try {
-        const notice = persistedCursorUsageNotice(usageBefore, usageAfter, turn.requestId, this.#agent, `${turnId}:cursor-native-usage`);
+        const notice = activity.usageNotice?.(usageBefore, usageAfter, turn.requestId, turnId);
         if (notice) { validateAcpxRichEvent(notice); this.#emit(notice.eventType, notice.payload, { turnId, itemId: notice.itemId }); }
       } catch { /* Partial native diagnostics are optional, never settlement authority. */ }
       const receipt = persistedAcpxTurnUsage(usageBefore, usageAfter, turn.requestId, this.#agent);
@@ -1699,8 +1698,9 @@ class CodexAcpxSession implements HarnessSession {
       || this.#pendingRuntimeRequests.size >= MAX_PENDING_RUNTIME_REQUESTS) return input.cancel();
     const responseDelivery = requireAcpxResponseDelivery(context);
     const requestId = stableId("acpx-request", `${turnId}:${++this.#runtimeRequestSequence}:${typeof context.requestId}:${context.requestId}`);
-    const toolCallId = cursorPlanToolIdentity(this.#agent, input);
-    const itemId = toolCallId === undefined ? requestId : cursorToolExecutionId(toolCallId);
+    const activity = acpxProfileActivity(this.#agent);
+    const toolCallId = activity.inputToolIdentity?.(input);
+    const itemId = toolCallId === undefined ? requestId : activity.toolExecutionId?.(toolCallId) ?? toolCallId;
     const request: HarnessRuntimeRequest = {
       requestId, requestKind: "elicitation", method: input.method, turnId, itemId,
       status: "pending", prompt: boundedText(input.questionSet.title ?? "Provider needs input", 1_000),
@@ -1737,7 +1737,7 @@ class CodexAcpxSession implements HarnessSession {
     turnId: string,
     request: AcpPermissionRequest,
     context: { signal: AbortSignal; responseDelivery?: Promise<void> },
-    toolEvidence?: CursorToolEvidence,
+    toolEvidence?: AcpxToolEvidence,
   ): Promise<AcpPermissionDecision> {
     const { signal } = context;
     if (this.#closed || this.#activeTurnId !== turnId || signal.aborted

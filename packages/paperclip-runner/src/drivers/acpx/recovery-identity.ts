@@ -53,7 +53,7 @@ export async function createAcpxRecoveryBinding(input: {
   const mode = parseProviderMode(input.mode);
   if (input.providerPolicy !== undefined && typeof input.providerPolicy.readOnly !== "boolean") throw new Error("ACPX recovery requires a valid task execution policy");
   if (input.requestedModel !== input.profile.qualificationModel) {
-    throw new Error("ACPX recovery requested an unqualified model");
+    throw new Error("ACPX recovery requested model does not match its admitted profile");
   }
   if (!isDigest(input.profile.commandDigest)) {
     throw new Error("ACPX recovery profile command digest is invalid");

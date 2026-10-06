@@ -883,3 +883,33 @@ scope, unsupported adapters, permission declines, optional diagnostics and Rust
 event projection. No new paid provider cells are part of this bounded cleanup.
 Historical live results keep their original build identities; new release
 artifacts still require matching source and qualification.
+
+## Model selection and activity adapters (2026-10-06)
+
+The bundled ACPX dependency still checked model discovery catalogs after the
+Paperclip allowlists were removed. The package now forwards an explicit model ID
+unchanged, including IDs absent from the catalog. It does not expand Cursor IDs
+into advertised variants. A native selection response must acknowledge the exact
+ID. New connections recheck the selected model after session load; rejection,
+mismatch, or missing model controls prevent prompting without a fallback.
+
+Fourteen package-level regressions exercise the real installed ACPX manager and
+ACP wire with offline provider fixtures. They cover all six adapters, startup,
+loaded-session continuation, incomplete catalogs, rejection, missing controls,
+mismatched acknowledgements, and Cursor alias handling. These are dependency
+integration tests, not paid model calls or new live qualification.
+
+The shared driver and sidecar obtain native tool identity, evidence, and optional
+usage projection through provider activity hooks. Cursor owns those hooks and its
+partial usage receipt parser. Capability metadata no longer describes Codex or Pi
+models as `exact-qualified`. Generic backend fixtures resolve the release profile
+instead of duplicating package versions and hashes.
+
+Cursor profile v13 binds the changed ACPX patch. The generator verifies both the
+patch hash and the canonical release-attestation digest before emitting TypeScript
+and Rust declarations. Historical profile revisions remain decodable, but a new
+launch requires current release identity. The pre-manifest recovery fixture keeps
+its original profile and digest; committed plan-wait records remain inspectable.
+Existing v11 live evidence and platform artifacts retain their original identities
+and do not certify this source revision. The PR verification section records the
+repository checks and any outstanding release verification for this follow-up.
