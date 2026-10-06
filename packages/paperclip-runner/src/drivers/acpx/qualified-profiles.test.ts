@@ -18,17 +18,22 @@ describe("qualified ACPX profiles", () => {
     }
   });
 
-  it.each(["claude-opus-5-5", "claude-fable-5-1", "custom-model-not-in-catalog"])("accepts the exact Claude model %s", (model) => {
-    expect(resolveQualifiedAcpxProfile("claude", model)).toMatchObject({
+  it.each(["claude", "grok", "cursor", "copilot"] as const)("lets %s verify an explicit model absent from the catalog", (agent) => {
+    const model = "custom-model-not-in-catalog";
+    expect(resolveQualifiedAcpxProfile(agent, model)).toMatchObject({
       qualificationModel: model, reportedModelId: model,
-      commandDigest: QUALIFIED_ACPX_PROFILES.claude.commandDigest,
+      commandDigest: QUALIFIED_ACPX_PROFILES[agent].commandDigest,
     });
   });
 
-  it("rejects unqualified model substitutions", () => {
+  it.each(["codex", "pi"] as const)("preserves the existing exact-model restriction for %s", (agent) => {
     expect(() =>
-      resolveQualifiedAcpxProfile("codex", "some-other-model"),
+      resolveQualifiedAcpxProfile(agent, "some-other-model"),
     ).toThrow("requires exact model");
+  });
+
+  it.each(["claude", "codex", "grok", "cursor", "copilot", "pi"] as const)("never selects a qualification model by default for %s", (agent) => {
+    expect(() => resolveQualifiedAcpxProfile(agent, " ")).toThrow("must not be empty");
   });
 
   it("binds Codex ACP to the CLI runtime it launches", () => {

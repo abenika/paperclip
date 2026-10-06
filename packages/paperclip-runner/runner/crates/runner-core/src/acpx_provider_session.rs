@@ -1,3 +1,4 @@
+use crate::generated_acpx_profiles::{acpx_release_profile, ModelAdmission};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -83,31 +84,22 @@ pub struct AcpxProviderSessionConfig {
 impl AcpxProviderSessionConfig {
     pub fn validate(&self) -> Result<(), LocalRunnerError> {
         self.transport.validate()?;
-        let qualified_model = match self.agent.as_str() {
-            "claude" => "claude-sonnet-5",
-            "grok" => "grok-4.7",
-            "codex" => "gpt-5.6-sol",
-            "pi" => "openrouter/deepseek/deepseek-v4-flash-0731",
-            "cursor" | "copilot" => self.model.as_str(),
-            _ => {
-                return Err(LocalRunnerError::invalid(
-                    "ACPX agent must name a known immutable profile",
-                ))
+        let profile = acpx_release_profile(&self.agent).ok_or_else(|| {
+            LocalRunnerError::invalid("ACPX agent must name a known immutable profile")
+        })?;
+        if let ModelAdmission::Exact(qualified_model) = profile.model_admission {
+            if self.model != qualified_model {
+                return Err(LocalRunnerError::invalid(format!(
+                    "ACPX {} profile requires exact model {qualified_model}",
+                    self.agent
+                )));
             }
-        };
-        if self.agent != "claude" && self.agent != "grok" && self.model != qualified_model {
-            return Err(LocalRunnerError::invalid(format!(
-                "ACPX {} profile requires exact model {qualified_model}",
-                self.agent
-            )));
         }
         validate_text(&self.model, MAX_MODEL_CHARS, "ACPX model")?;
         if let Some(mode) = self.mode.as_deref() {
             validate_text(mode, MAX_ID_CHARS, "ACPX provider mode")?;
         }
-        if matches!(self.agent.as_str(), "pi" | "cursor" | "copilot")
-            && self.provider_policy.is_none()
-        {
+        if profile.requires_provider_policy && self.provider_policy.is_none() {
             return Err(LocalRunnerError::invalid(
                 "ACPX candidate requires explicit provider read-only policy",
             ));

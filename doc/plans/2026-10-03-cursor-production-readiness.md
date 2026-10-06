@@ -25,6 +25,29 @@ spend or enforceable per-run dollar accounting. Native AskQuestion is implemente
 defensively but is not advertised or certified. See the
 [Cursor capability contract](../architecture/runner-cursor-capabilities.md).
 
+## Bounded declaration cleanup — 2026-10-06
+
+The PR audit found duplicated release tuples in Rust descriptor validation,
+duplicated model rules in Rust session validation, and independent pins in the
+TypeScript profile registry, provider-pack builder, server pack verifier, and
+Cursor installation code. `packages/paperclip-runner/acpx-profiles.json` now owns
+the release/profile declarations; generated TypeScript and named Rust structs
+share them. Model admission is explicit and separate from qualification examples.
+Cursor closure pins are generated from the existing distribution manifest.
+Build and typecheck reject declaration drift, including mismatches with the
+Cursor release attestation and installed dependencies.
+
+All provider versions, digests, model acceptance rules, and recovery identity
+fields retain their previous meaning. A regression check pins the pre-cleanup
+Cursor recovery digest. Historical rejection fixtures and evidence keep their
+original identities. Cursor launch flags, credential names, and native extension
+translation remain provider-adapter responsibilities; generic mode, lifecycle,
+permission, and transport contracts retain the earlier cleanup.
+
+This is a source cleanup after the live qualification recorded below. Its checks
+do not relabel the earlier package/image as a build of this source, and no further
+paid qualification or release is implied.
+
 ## Final installed-release qualification — 2026-10-06
 
 This qualification follows the generic mode and provider lifecycle cleanup. Its

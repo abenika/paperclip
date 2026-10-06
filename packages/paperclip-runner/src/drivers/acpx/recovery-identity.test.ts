@@ -26,6 +26,19 @@ afterEach(async () => {
 });
 
 describe("ACPX recovery identity", () => {
+  it("preserves the pre-manifest Cursor recovery profile identity", async () => {
+    const fixture = await recoveryFixture();
+    const requestedModel = "explicit-test-model";
+    const binding = await createAcpxRecoveryBinding({
+      ...fixture.input,
+      requestedModel,
+      profile: resolveQualifiedAcpxProfile("cursor", requestedModel),
+    });
+    // Captured from e75fde6098b0ddd8cec765bfb6ecaeecb88a26a6 before
+    // consolidating release declarations; this is historical evidence.
+    expect(binding.profileDigest).toBe("sha256:801bf9f450a2776ec879f2d85c05d8950172565a87f8f79177e0fc1211ae0bab");
+  });
+
   it("derives one stable, filesystem-safe runtime directory name", () => {
     expect(acpxRuntimeSessionDirectoryName("session/1")).toMatch(
       /^session_1-[0-9a-f]{16}$/,

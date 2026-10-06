@@ -14,6 +14,7 @@ pub mod codex_provider;
 mod codex_startup_trust;
 pub mod durable;
 pub mod fake_harness;
+mod generated_acpx_profiles;
 pub mod generated_acpx_sidecar_contract;
 pub mod local_runner;
 pub mod managed_provider;

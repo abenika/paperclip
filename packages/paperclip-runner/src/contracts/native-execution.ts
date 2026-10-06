@@ -1,3 +1,4 @@
+import { QUALIFIED_ACPX_VERSION } from "../drivers/acpx/generated-profiles.js";
 import { isSupportedAcpxProfileVersion, type AcpxProfileVersion } from "../drivers/acpx/profile-compatibility.js";
 import { isProviderMode } from "./provider-mode.js";
 import { createHash } from "node:crypto";
@@ -90,7 +91,7 @@ export type NativeAcpxPermissionMode = "approve-all" | "approve-paperclip" | "ap
 export interface NativeAcpxProfileSnapshot {
   driverKind: "acpx_runtime";
   protocolVersion: 1;
-  acpxVersion: "0.13.1";
+  acpxVersion: typeof QUALIFIED_ACPX_VERSION;
   agent: NativeAcpxAgent;
   agentProfileVersion: AcpxProfileVersion;
   agentServerPackage: string;
@@ -606,7 +607,7 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
     if (
       profile.driverKind !== "acpx_runtime"
       || profile.protocolVersion !== 1
-      || profile.acpxVersion !== "0.13.1"
+      || profile.acpxVersion !== QUALIFIED_ACPX_VERSION
       || profile.agent !== provider.agent
       || !isSupportedAcpxProfileVersion(provider.agent, profile.agentProfileVersion)
     ) {
@@ -628,7 +629,7 @@ export function parseNativeExecutionInput(value: unknown): NativeExecutionInput 
       profile: {
         driverKind: "acpx_runtime",
         protocolVersion: 1,
-        acpxVersion: "0.13.1",
+        acpxVersion: QUALIFIED_ACPX_VERSION,
         agent: provider.agent,
         agentProfileVersion: profile.agentProfileVersion,
         agentServerPackage: text(profile.agentServerPackage, "input.provider.profile.agentServerPackage"),

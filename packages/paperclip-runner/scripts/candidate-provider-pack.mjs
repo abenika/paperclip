@@ -1,3 +1,4 @@
+import profiles from "../acpx-profiles.json" with { type: "json" };
 import { materializePinnedCursorDistribution } from "./materialize-cursor-distribution.mjs";
 const CANDIDATES = new Set(["cursor", "copilot", "pi"]);
 
@@ -35,7 +36,7 @@ export async function materializeCandidateProviderPack({ provider, outputRoot })
   if (provider === "cursor") {
     const result = await materializePinnedCursorDistribution({ destination: outputRoot });
     return { version: result.version,
-      profileDigest: "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
+      profileDigest: profiles.profiles.cursor.commandDigest,
       closureDigest: `sha256:${result.closureSha256}` };
   }
   throw new Error(`The ${provider} candidate distribution builder is not included in this source revision`);

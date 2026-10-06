@@ -41,6 +41,24 @@ Legacy fresh attempts receive the same bounded handoff, including resume-failure
 fallbacks. Provider
 authentication repairs retain their existing fresh-session recovery behavior.
 
+## ACPX release declarations
+
+`acpx-profiles.json` owns the package versions, command/profile digests, model
+admission policies, and required execution policies used by TypeScript and Rust.
+After changing it, run `pnpm --filter @paperclipai/paperclip-runner generate:acpx-profiles`.
+Normal build and typecheck reject stale generated declarations. Generation also
+checks installed dependency pins and agreement with Cursor's distribution manifest
+and immutable release attestation (`cursor-contract.json`). Cursor's per-platform
+closure pins are generated from `cursor-distributions.json`.
+
+Model admission is separate from qualification examples. `provider-verified`
+requires an explicit caller-selected model and native verification; `exact`
+retains the existing restriction for the Codex ACP and Pi profiles. Qualification
+examples are neither a model catalog nor defaults. The legacy snapshot field
+`qualificationModel` contains the selected model after resolution; its serialized
+name is retained to preserve recovery identities. Historical profile fixtures
+remain immutable evidence, not release declarations.
+
 ## Public package surfaces
 
 - `@paperclipai/paperclip-runner` — production contracts, clients/backends,

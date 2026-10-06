@@ -1,3 +1,6 @@
+use crate::generated_acpx_profiles::{
+    acpx_release_profile, ACPX_DRIVER_KIND, QUALIFIED_ACPX_VERSION,
+};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs::{self, DirBuilder, File};
 use std::io::{Read, Write};
@@ -185,67 +188,15 @@ impl AcpxProviderDescriptor {
         &self,
         context: &AcpxEventProjectionContext,
     ) -> Result<(), DurableRunnerError> {
-        let expected = match self.agent.as_str() {
-            "claude" => (
-                "claude-sonnet-5",
-                "@agentclientprotocol/claude-agent-acp",
-                "0.73.0",
-                Some("@anthropic-ai/claude-agent-sdk"),
-                Some("0.3.286"),
-                "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
-            ),
-            "codex" => (
-                "gpt-5.6-sol",
-                "@agentclientprotocol/codex-acp",
-                "1.6.2",
-                Some("@openai/codex"),
-                Some("0.160.0"),
-                "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3",
-            ),
-            "pi" => (
-                "openrouter/deepseek/deepseek-v4-flash-0731",
-                "pi-acp",
-                "0.0.33",
-                Some("@earendil-works/pi-coding-agent"),
-                Some("0.84.2"),
-                "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f",
-            ),
-            "cursor" => (
-                self.model.as_str(),
-                "cursor-agent",
-                "2026.09.26-dd393fe",
-                None,
-                None,
-                "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-            ),
-            "copilot" => (
-                self.model.as_str(),
-                "@github/copilot",
-                "1.0.88",
-                None,
-                None,
-                "sha256:b18c01603dd0169d233140709cfaa8bf5304a03cf5de78ca4f625f30013e8457",
-            ),
-            "grok" => (
-                "grok-4.7",
-                "builtin:grok-acp",
-                "1",
-                Some("native:grok"),
-                Some("1.0.13"),
-                "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
-            ),
-            _ => {
-                return Err(DurableRunnerError::invalid(
-                    "ACPX agent must name a known immutable profile",
-                ))
-            }
-        };
+        let expected = acpx_release_profile(&self.agent).ok_or_else(|| {
+            DurableRunnerError::invalid("ACPX agent must name a known immutable profile")
+        })?;
         if self.kind != "acpx"
             || self.provider != "acpx"
-            || self.driver != "acpx_runtime"
-            || self.provider_version != "0.13.1"
-            || self.acpx_version != "0.13.1"
-            || (self.agent != "claude" && self.agent != "grok" && self.model != expected.0)
+            || self.driver != ACPX_DRIVER_KIND
+            || self.provider_version != QUALIFIED_ACPX_VERSION
+            || self.acpx_version != QUALIFIED_ACPX_VERSION
+            || !expected.model_admission.accepts(&self.model)
             || self.model.trim().is_empty()
             || self.model.len() > 240
             || self.model.contains('\0')
@@ -254,13 +205,12 @@ impl AcpxProviderDescriptor {
                     || mode.chars().count() > 240
                     || mode.chars().any(char::is_control)
             })
-            || (matches!(self.agent.as_str(), "pi" | "cursor" | "copilot")
-                && self.provider_policy.is_none())
-            || self.agent_server_package != expected.1
-            || self.agent_server_version != expected.2
-            || self.agent_runtime_package.as_deref() != expected.3
-            || self.agent_runtime_version.as_deref() != expected.4
-            || self.command_digest != expected.5
+            || (expected.requires_provider_policy && self.provider_policy.is_none())
+            || self.agent_server_package != expected.agent_server_package
+            || self.agent_server_version != expected.agent_server_version
+            || self.agent_runtime_package.as_deref() != expected.agent_runtime_package
+            || self.agent_runtime_version.as_deref() != expected.agent_runtime_version
+            || self.command_digest != expected.command_digest
         {
             return Err(DurableRunnerError::invalid(
                 "ACPX provider descriptor does not match a qualified immutable profile",
@@ -2328,48 +2278,28 @@ mod tests {
     }
 
     fn descriptor(agent: &str) -> Value {
-        let (model, package, version, runtime_package, runtime_version, digest) =
-            if agent == "claude" {
-                (
-                    "claude-sonnet-5",
-                    "@agentclientprotocol/claude-agent-acp",
-                    "0.73.0",
-                    json!("@anthropic-ai/claude-agent-sdk"),
-                    json!("0.3.286"),
-                    "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
-                )
-            } else if agent == "cursor" {
-                (
-                    "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
-                    "cursor-agent",
-                    "2026.09.26-dd393fe",
-                    Value::Null,
-                    Value::Null,
-                    "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-                )
-            } else {
-                (
-                    "gpt-5.6-sol",
-                    "@agentclientprotocol/codex-acp",
-                    "1.6.2",
-                    json!("@openai/codex"),
-                    json!("0.160.0"),
-                    "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3",
-                )
-            };
+        let profile = acpx_release_profile(agent).unwrap();
+        let model = match agent {
+            "claude" => "claude-sonnet-5",
+            "cursor" => "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+            "pi" => "openrouter/deepseek/deepseek-v4-flash-0731",
+            "grok" => "grok-4.7",
+            "copilot" => "explicit-test-model",
+            _ => "gpt-5.6-sol",
+        };
         let mut value = json!({
             "kind": "acpx",
             "provider": "acpx",
             "driver": "acpx_runtime",
-            "providerVersion": "0.13.1",
+            "providerVersion": QUALIFIED_ACPX_VERSION,
             "agent": agent,
             "model": model,
-            "acpxVersion": "0.13.1",
-            "agentServerPackage": package,
-            "agentServerVersion": version,
-            "agentRuntimePackage": runtime_package,
-            "agentRuntimeVersion": runtime_version,
-            "commandDigest": digest,
+            "acpxVersion": QUALIFIED_ACPX_VERSION,
+            "agentServerPackage": profile.agent_server_package,
+            "agentServerVersion": profile.agent_server_version,
+            "agentRuntimePackage": profile.agent_runtime_package,
+            "agentRuntimeVersion": profile.agent_runtime_version,
+            "commandDigest": profile.command_digest,
             "sidecarCommand": "/qualified/node",
             "sidecarArgs": ["/qualified/acpx-sidecar.js"],
             "runtimeDirectory": "/runtime/acpx",
@@ -2381,9 +2311,11 @@ mod tests {
             "permissionModePinned": true,
             "runtimeContext": null,
         });
+        if profile.requires_provider_policy {
+            value["providerPolicy"] = json!({"readOnly": true});
+        }
         if agent == "cursor" {
             value["mode"] = json!("agent");
-            value["providerPolicy"] = json!({"readOnly": true});
         }
         value
     }
@@ -2822,50 +2754,50 @@ mod tests {
     }
 
     #[test]
-    fn admits_candidate_descriptors_only_with_explicit_policy_and_exact_distribution() {
-        for (agent, package, version, digest, runtime_package, runtime_version, model) in [
-            (
-                "cursor",
-                "cursor-agent",
-                "2026.09.26-dd393fe",
-                "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-                None,
-                None,
-                "explicit-model",
-            ),
-            (
-                "copilot",
-                "@github/copilot",
-                "1.0.88",
-                "sha256:b18c01603dd0169d233140709cfaa8bf5304a03cf5de78ca4f625f30013e8457",
-                None,
-                None,
-                "explicit-model",
-            ),
-            (
-                "pi",
-                "pi-acp",
-                "0.0.33",
-                "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f",
-                Some("@earendil-works/pi-coding-agent"),
-                Some("0.84.2"),
-                "openrouter/deepseek/deepseek-v4-flash-0731",
-            ),
-        ] {
-            let mut value = descriptor("codex");
-            value["agent"] = json!(agent);
-            value["model"] = json!(model);
-            value["agentServerPackage"] = json!(package);
-            value["agentServerVersion"] = json!(version);
-            value["agentRuntimePackage"] = json!(runtime_package);
-            value["agentRuntimeVersion"] = json!(runtime_version);
-            value["commandDigest"] = json!(digest);
-            let missing: AcpxProviderDescriptor = serde_json::from_value(value.clone()).unwrap();
-            assert!(missing.validate(&context()).is_err());
-            value["providerPolicy"] = json!({"readOnly":true});
-            if agent == "cursor" {
-                value["mode"] = json!("agent");
+    fn model_admission_is_independent_of_qualification_examples() {
+        for agent in ["claude", "grok", "cursor", "copilot", "codex", "pi"] {
+            let original: AcpxProviderDescriptor =
+                serde_json::from_value(descriptor(agent)).unwrap();
+            original.validate_session(&context()).unwrap();
+            let mut alternative = descriptor(agent);
+            alternative["model"] = json!("explicit-model-not-in-a-catalog");
+            let alternative: AcpxProviderDescriptor = serde_json::from_value(alternative).unwrap();
+            assert_eq!(
+                alternative.validate_session(&context()).is_ok(),
+                !matches!(agent, "codex" | "pi")
+            );
+            for field in [
+                "agentServerPackage",
+                "agentServerVersion",
+                "agentRuntimePackage",
+                "agentRuntimeVersion",
+                "commandDigest",
+                "acpxVersion",
+                "providerVersion",
+            ] {
+                let mut tampered = descriptor(agent);
+                tampered[field] = json!("untrusted");
+                let tampered: AcpxProviderDescriptor = serde_json::from_value(tampered).unwrap();
+                assert!(
+                    tampered.validate_session(&context()).is_err(),
+                    "{agent}: {field}"
+                );
             }
+            let mut empty = descriptor(agent);
+            empty["model"] = json!(" ");
+            let empty: AcpxProviderDescriptor = serde_json::from_value(empty).unwrap();
+            assert!(empty.validate_session(&context()).is_err());
+        }
+    }
+
+    #[test]
+    fn admits_candidate_descriptors_only_with_explicit_policy_and_exact_distribution() {
+        for agent in ["cursor", "copilot", "pi"] {
+            let mut value = descriptor(agent);
+            let mut missing = value.clone();
+            missing.as_object_mut().unwrap().remove("providerPolicy");
+            let missing: AcpxProviderDescriptor = serde_json::from_value(missing).unwrap();
+            assert!(missing.validate(&context()).is_err());
             let valid: AcpxProviderDescriptor = serde_json::from_value(value.clone()).unwrap();
             valid.validate(&context()).unwrap();
             if matches!(agent, "cursor" | "copilot") {
