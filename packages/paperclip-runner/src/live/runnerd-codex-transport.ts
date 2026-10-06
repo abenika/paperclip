@@ -3294,6 +3294,9 @@ export function resolveRunnerdAcpxPermissionMode(
 }
 
 const OPEN_CODE_RUNNER_ENVIRONMENT_KEYS = new Set([
+  "PAPERCLIP_AI_PROVIDER_KEY",
+  "PAPERCLIP_AI_PROVIDER_URL",
+  "PAPERCLIP_AGENT_KEY_ID", "PAPERCLIP_AGENT_PUBLIC_KEY", "PAPERCLIP_AGENT_PRIVATE_KEY",
   "PATH",
   "LANG",
   "LANGUAGE",
@@ -3328,6 +3331,10 @@ function createSanitizedOpenCodeRunnerEnvironment(
   source: NodeJS.ProcessEnv | undefined,
 ): NodeJS.ProcessEnv {
   const candidate = { ...process.env, ...source };
+  for (const key of ["PAPERCLIP_AGENT_KEY_ID", "PAPERCLIP_AGENT_PUBLIC_KEY", "PAPERCLIP_AGENT_PRIVATE_KEY"]) {
+    delete candidate[key];
+    if (source?.[key] !== undefined) candidate[key] = source[key];
+  }
   return Object.fromEntries(
     Object.entries(candidate).filter(
       ([key, value]) =>

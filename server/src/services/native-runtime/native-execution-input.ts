@@ -58,6 +58,7 @@ export function buildNativeExecutionInput(input: {
   previousTurn?: { runId: string; task: { title: string; description: string | null } } | null;
   conversationMode?: boolean;
   agentId: string;
+  agentKeyId?: string;
   workspace: {
     id: string;
     cwd: string;
@@ -210,6 +211,7 @@ export function buildNativeExecutionInput(input: {
       runId: input.runId,
       issueId: input.issue.id,
       agentId: input.agentId,
+      ...(input.agentKeyId ? { agentKeyId: input.agentKeyId } : {}),
       executionWorkspaceId: input.workspace.id,
     },
     task: {
