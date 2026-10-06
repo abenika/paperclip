@@ -942,3 +942,15 @@ The package stayed read-only and contained no downloaded runtime. Historical
 live matrices retain their original identities; these fixes do not certify a
 new v13 package/image combination. Follow-up Apex and CI results belong to the
 PR head reported by GitHub.
+
+The second Apex pass scored 4/5 and found that the Linux public-install smoke
+still used the old package-owned path. Its sandbox now supplies an unprivileged
+passwd entry and a persistent account home. Setup and the offline probe mount
+the installed package read-only; the probe expects the source-pinned closure in
+the account cache. Both npm lifecycle execution and explicit setup must leave
+the package without Cursor assets. The 137 release-registry checks pass,
+including eight sandbox checks. A focused Linux x64 container run downloaded
+the real pinned distribution, repeated setup offline, and verified the private
+runtime snapshot with provider HOME redirected. It used no repository mount,
+credentials, or model calls. This exercises the corrected installer/cache path;
+it is not a new full public-package graph, daemon, or live-provider qualification.
