@@ -23,12 +23,12 @@
       "requiresProviderPolicy": true
     },
     "cursor": {
-      "agentProfileVersion": 13,
+      "agentProfileVersion": 14,
       "agentServerPackage": "cursor-agent",
       "agentServerVersion": "2026.09.26-dd393fe",
       "agentRuntimePackage": null,
       "agentRuntimeVersion": null,
-      "commandDigest": "sha256:b4005b130936c9ee1bf036258e2fbefed7337d4d1c485d0da8ecbaa03aceec9b",
+      "commandDigest": "sha256:a5e70580e4933a1a9248cd3c1b16500c6c93e1e14913e0a98cd5ef878bd53d39",
       "requiresProviderPolicy": true
     },
     "copilot": {

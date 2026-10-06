@@ -954,3 +954,19 @@ the real pinned distribution, repeated setup offline, and verified the private
 runtime snapshot with provider HOME redirected. It used no repository mount,
 credentials, or model calls. This exercises the corrected installer/cache path;
 it is not a new full public-package graph, daemon, or live-provider qualification.
+
+## Mainline reconciliation after Apex (2026-10-06)
+
+The merge preserves mainline's revised child-completion wake and finalization
+checks together with Cursor's committed plan-wait authority. Provider selection
+uses the current shared Select control while retaining Cursor admission and mode
+binding. Browser fixtures preserve attachment completion, project focus handling,
+and exact creation-response identities; they do not recover task IDs by generated
+names. The merged catalog contains both Cursor and connection acceptance cases.
+
+Cursor profile v14 binds the combined ACPX patch: mainline's ACP resource-not-found
+response for missing files plus the reviewed exact-model and Cursor lifecycle
+changes. It adds no model restriction. TypeScript and Rust release declarations
+are regenerated from the existing source manifest. Earlier v11 live results and
+v13 Apex results retain their original identities. The merged artifacts still
+need their own release qualification before publication.

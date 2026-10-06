@@ -9,6 +9,7 @@ export async function createTaskThroughUi(input: {
   workMode: "standard" | "planning" | "ask";
   projectName?: string;
   requireExplicitTitle?: boolean;
+  attachments?: readonly string[];
 }) {
   // Search's public creation action exposes the explicit title field. Strict
   // native-operation fixtures use it so automatic task naming is not an extra
@@ -18,7 +19,7 @@ export async function createTaskThroughUi(input: {
     : `/${encodeURIComponent(input.issuePrefix)}/issues`;
   const newTask = input.requireExplicitTitle
     ? input.page.getByRole("button", { name: "Create task from this query", exact: true })
-    : input.page.getByRole("button", { name: "New Task" }).first();
+    : input.page.getByRole("button", { name: /^New task$/i }).first();
   let bootstrapError: unknown;
   for (let bootstrapAttempt = 1; bootstrapAttempt <= 3; bootstrapAttempt += 1) {
     try {
@@ -59,12 +60,31 @@ export async function createTaskThroughUi(input: {
   await input.page.getByRole("option").filter({ has: input.page.getByText(input.agentName, { exact: true }) }).click();
   await expect(input.page.getByRole("searchbox", { name: "Search assignees", exact: true })).toBeHidden();
   if (input.projectName) {
-    // The selector remembers the previous project, so its visible label changes.
-    await dialog.locator('button[data-slot="new-issue-compact-control"]').click();
-    await input.page.getByPlaceholder("Search projects...").fill(input.projectName);
+    // Selecting the assignee advances focus to this selector and opens it.
+    // Focus is idempotent here; clicking would toggle an already-open popover
+    // closed before the search field can be filled.
+    const projectTrigger = dialog.getByRole("group", { name: "Task project and worktrees", exact: true }).getByRole("button").first();
+    await projectTrigger.focus();
+    const projectSearch = input.page.getByPlaceholder(/^Search projects(?:…|\.\.\.)?$/i);
+    await expect(projectSearch).toBeVisible({ timeout: 2_000 }).catch(async () => {
+      if (await projectTrigger.getAttribute("aria-expanded") !== "true") await projectTrigger.click();
+      await expect(projectSearch).toBeVisible();
+    });
+    await projectSearch.fill(input.projectName);
     await input.page.getByText(input.projectName, { exact: true }).last().click();
   }
   const submittedAtMs = Date.now();
+  if (input.attachments?.length) {
+    const chooser = input.page.waitForEvent("filechooser");
+    const upload = dialog.getByRole("button", { name: "Upload", exact: true });
+    if (await upload.count()) await upload.click();
+    else {
+      await dialog.getByRole("button", { name: "Add to composer", exact: true }).click();
+      await input.page.getByRole("menuitem", { name: /^Files and images/ }).click();
+    }
+    await (await chooser).setFiles([...input.attachments]);
+    // Upload finishes as part of task creation; the dialog retains the selected files.
+  }
   // The prompt-only composer generates a provisional title which the provider
   // can rename immediately. Bind the fixture to the actual creation response.
   const [response] = await Promise.all([
@@ -81,6 +101,8 @@ export async function createTaskThroughUi(input: {
     expect(issue.title).toBe(input.title);
     expect(issue.titleNeedsGeneration).toBe(false);
   }
+  // Creation precedes uploads; allow them to finish before navigation.
+  await expect(dialog).not.toBeVisible({ timeout: 30_000 });
   return { submittedAtMs, issueId: issue.id };
 }
 

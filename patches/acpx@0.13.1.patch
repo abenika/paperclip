@@ -22,6 +22,15 @@ index 5e2113ac0..45aff03c3 100644
 diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
 --- a/dist/live-checkpoint-BSIrfgVo.js
 +++ b/dist/live-checkpoint-BSIrfgVo.js
+@@ -6,7 +6,7 @@
+ import { randomUUID } from "node:crypto";
+ import { execFile, spawn } from "node:child_process";
+ import { Readable, Writable } from "node:stream";
+-import { PROTOCOL_VERSION, client, methods } from "@agentclientprotocol/sdk";
++import { PROTOCOL_VERSION, RequestError, client, methods } from "@agentclientprotocol/sdk";
+ import readline from "node:readline/promises";
+ //#region src/errors.ts
+ var AcpxOperationalError = class extends Error {
 @@ -1068,12 +1068,14 @@
  		last_agent_disconnect_reason: canonical.lastAgentDisconnectReason,
  		protocol_version: canonical.protocolVersion,
@@ -722,7 +731,17 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  		});
  		child.once("close", (exitCode, signal) => {
  			this.recordAgentExit("process_close", exitCode, signal);
-@@ -5239,6 +5528,7 @@
+@@ -5100,6 +5389,9 @@
+ 			return await this.filesystem.readTextFile(params);
+ 		} catch (error) {
+ 			this.recordPermissionError(params.sessionId, error);
++			// Keep ENOENT distinct from permission and other filesystem failures.
++			// The ACP peer must receive a resource error before it creates a file.
++			if (error && typeof error === "object" && error.code === "ENOENT") throw RequestError.resourceNotFound(params.path);
+ 			throw error;
+ 		}
+ 	}
+@@ -5239,6 +5531,7 @@
  	record.cumulative_token_usage = conversation.cumulative_token_usage;
  	record.cumulative_cost = conversation.cumulative_cost;
  	record.request_token_usage = conversation.request_token_usage;
@@ -730,7 +749,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  }
  //#endregion
  //#region src/runtime/engine/session-options.ts
-@@ -5701,7 +5991,8 @@
+@@ -5701,7 +5994,8 @@
  		updated_at: conversation.updated_at,
  		cumulative_token_usage: deepClone(conversation.cumulative_token_usage ?? {}),
  		cumulative_cost: cloneUsageCost(conversation.cumulative_cost),
@@ -740,7 +759,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  	};
  }
  function cloneUsageCost(cost) {
-@@ -5771,10 +6062,20 @@
+@@ -5771,10 +6065,20 @@
  	trimConversationForRuntime(conversation);
  	return acpx;
  }
@@ -763,7 +782,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  	updateConversationTimestamp(conversation, timestamp);
  	trimConversationForRuntime(conversation);
  	return true;
-@@ -6136,6 +6437,7 @@
+@@ -6136,6 +6440,7 @@
  	pendingAgentSessionId = loadState.pendingAgentSessionId;
  	sessionModels = loadState.sessionModels;
  	const preferenceReplay = await replayFreshSessionPreferences({
@@ -771,7 +790,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  		client,
  		record,
  		createdFreshSession,
-@@ -6193,14 +6495,16 @@
+@@ -6193,14 +6498,16 @@
  	if (shouldReconnect) process.stderr.write(`[acpx] saved session pid ${record.pid} is dead; respawning agent and attempting session reconnect\n`);
  }
  async function replayFreshSessionPreferences(params) {
@@ -790,7 +809,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  			client: params.client,
  			sessionId: params.sessionId,
  			desiredModeId: params.desiredModeId,
-@@ -6219,7 +6523,7 @@
+@@ -6219,7 +6526,7 @@
  			verbose: params.verbose,
  			suppressWarnings: params.suppressWarnings
  		});
@@ -799,7 +818,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  			client: params.client,
  			record: params.record,
  			sessionId: params.sessionId,
-@@ -6435,6 +6739,27 @@
+@@ -6435,6 +6742,27 @@
  //#region src/runtime/engine/prompt-turn.ts
  const SESSION_REPLY_IDLE_MS = 1e3;
  const SESSION_REPLY_DRAIN_TIMEOUT_MS = 5e3;
@@ -827,7 +846,7 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  async function runPromptTurn(params) {
  	try {
  		const promptPromise = params.client.prompt(params.sessionId, params.prompt, params.onPromptRequestStarted, params.onElicitation);
-@@ -6444,7 +6769,23 @@
+@@ -6444,7 +6772,23 @@
  			idleMs: SESSION_REPLY_IDLE_MS,
  			timeoutMs: SESSION_REPLY_DRAIN_TIMEOUT_MS
  		}).catch(() => {});

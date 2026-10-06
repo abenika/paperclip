@@ -38,7 +38,7 @@ pub(crate) fn acpx_release_profile(agent: &str) -> Option<AcpxReleaseProfile> {
             agent_runtime_package: None,
             agent_runtime_version: None,
             command_digest:
-                "sha256:b4005b130936c9ee1bf036258e2fbefed7337d4d1c485d0da8ecbaa03aceec9b",
+                "sha256:a5e70580e4933a1a9248cd3c1b16500c6c93e1e14913e0a98cd5ef878bd53d39",
             requires_provider_policy: true,
         },
         "copilot" => AcpxReleaseProfile {
