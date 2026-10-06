@@ -6,13 +6,13 @@ This record separates model qualification from client interoperability and deplo
 
 All eight added `public-mcp` cases passed on each of three models, with automatic retries disabled. Each case uses a real runner worker, a separate assistant, and independent durable-state assertions. The grader requires the expected report, one successful worker execution and no extra runs. Task editing additionally requires newly attributed human activity in edit → block → finish order. File tests independently compare SHA-256 hashes and automatic attachment creation. Calibration tests reject fabricated completion, missing transitions, wrong actors/order and secret leakage.
 
-| Model | Final result | Source | Campaign |
+| Model | Initial qualified result | Source | Campaign |
 | --- | --- | --- | --- |
 | `gpt-5.4-mini` | 8/8 | `9089870a4da4b03b12f7eab0afd134311b840a02` | `local-2026-10-06T20-28-55-414Z` |
 | `claude-haiku-4-5-20251001` | 8/8 | same | same |
 | `claude-sonnet-4-6` | 8/8 | `b9c4be5f0f8a3f1143f83edf3e8a047d02888eea` | `local-2026-10-06T20-44-06-234Z` |
 
-Cases: `expanded-task-edit`, `expanded-documents`, `expanded-files`, `expanded-agent-config`, `expanded-projects`, `expanded-skills`, `expanded-api`, `expanded-permissions`. All final runs use suite fingerprint `d86dc8451519467b8680e92b7d6c3bee975a4bff419e6beaace2d8eeb5ce43f5` and grader v15. Sonnet ran after the final legacy-instruction guard; Mini/Haiku ran before that narrow rejection was added. The latter guard has named-tool/API route regressions at the final runtime revision.
+Cases: `expanded-task-edit`, `expanded-documents`, `expanded-files`, `expanded-agent-config`, `expanded-projects`, `expanded-skills`, `expanded-api`, `expanded-permissions`. Those initial runs use suite fingerprint `d86dc8451519467b8680e92b7d6c3bee975a4bff419e6beaace2d8eeb5ce43f5` and grader v15. Sonnet ran after the legacy-instruction guard; Mini/Haiku ran before that narrow rejection was added. The latter guard has named-tool/API route regressions at the final runtime revision.
 
 The final cheap-model campaign reports $1.5474926 estimated assistant cost plus $0.4521314 provider-reported worker cost: **$1.999624 known, plus unpriced Mini worker usage**. Sonnet reports $4.175256 estimated assistant cost plus $1.6985064 worker cost: **$5.8737624**. These are qualification campaign costs, not total development spend. Cached usage, provider-reported costs and estimates remain separate in the evidence.
 
@@ -90,3 +90,27 @@ grant makes the same stdio bridge reject subsequent MCP initialization. The
 Codex and OpenCode grants stay independent. A Claude diagnostic attempt that
 hallucinated a shell script is retained and is not counted as proof; the
 independent protocol rejection supplies that proof.
+
+### Final affected-case qualification
+
+At `b2196fae1a60077eb40dfe7f67e95f65f81ed8b2`, campaign
+`local-2026-10-06T21-43-35-026Z` passes **9/9**: documents, binary files
+and agent configuration on Mini, Haiku and Sonnet, with no automatic retries.
+The prior Haiku startup failure is now followed by a passing independent attempt.
+All selected cases and cleanup passed. Grader v16 uses suite fingerprint
+`0d49f11ce0ebed41e74866616a1e5f03b1e52ead86131f3bbd239cbd36a81dba`.
+Known cost is **$3.3112918** ($2.54030125 estimated assistant cost and
+$0.77099055 reported worker cost), plus unpriced Mini worker usage.
+The other five expanded cases passed across all three models on the preceding
+merged source; this targeted repeat covers the changed transfer/OAuth path and
+stronger later-document grading.
+
+Butter's merged-source deployment was verified on `e81f114bc` by workflow
+[37535338093](https://github.com/paperclipai/paperclip-cloud/actions/runs/37535338093).
+The public metadata advertises configuration scope; invalid upload and download
+tickets both return 403 through the tenant gateway. In a fresh OpenCode workspace,
+the copied invitation fetched setup instructions, added the remote server, started
+OAuth and produced a real Butter consent page with configuration unchecked.
+The hosted grant awaits human approval under the browser tool's persistent-access
+confirmation rule. Successful hosted transfers/delegation are not yet claimed.
+The follow-up deployment of `b2196fae1` is tracked in the PR.
