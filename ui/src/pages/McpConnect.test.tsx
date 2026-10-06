@@ -8,7 +8,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { api } from "../api/client";
 import { McpConnectPage, McpDevicePage } from "./McpConnect";
 
-const route = vi.hoisted(() => ({ id: "request-one", companyId: null as string | null, unavailable: false, canWrite: true, requestedWrite: true, clientName: "Assistant", clientOrigin: null as string | null, setupUrl: "https://my.paperclip.app/orgs/new", reverseCompanies: false, hideFirst: false }));
+const route = vi.hoisted(() => ({ id: "request-one", companyId: null as string | null, unavailable: false, canWrite: true, requestedWrite: true, requestedConfigure: false, clientName: "Assistant", clientOrigin: null as string | null, setupUrl: "https://my.paperclip.app/orgs/new", reverseCompanies: false, hideFirst: false }));
 vi.mock("@/lib/router", () => ({
   useParams: () => ({ id: route.id }),
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
@@ -19,7 +19,7 @@ vi.mock("@/components/CompanyPatternIcon", () => ({
 vi.mock("../api/client", () => ({ api: {
   get: vi.fn(async () => ({
     id: route.id, clientName: route.clientName, clientOrigin: route.clientOrigin, redirectOrigin: "https://assistant.example.test",
-    requestedWrite: route.requestedWrite, offlineAccess: true, requiresSignIn: false, requestedCompanyId: route.companyId,
+    requestedWrite: route.requestedWrite, requestedConfigure: route.requestedConfigure, offlineAccess: true, requiresSignIn: false, requestedCompanyId: route.companyId,
     companies: route.unavailable ? [] : [
       { id: route.companyId ?? "company-one", name: "Acme Research", logoUrl: "/api/assets/acme-logo/content", canWrite: route.canWrite },
       ...(!route.companyId ? [{ id: "company-two", name: "Design Partners", logoUrl: null, canWrite: true }] : []),
@@ -29,7 +29,7 @@ vi.mock("../api/client", () => ({ api: {
 } }));
 
 beforeEach(() => {
-  Object.assign(route, { id: "request-one", companyId: null, unavailable: false, canWrite: true, requestedWrite: true, clientName: "Assistant", clientOrigin: null, setupUrl: "https://my.paperclip.app/orgs/new", reverseCompanies: false, hideFirst: false });
+  Object.assign(route, { id: "request-one", companyId: null, unavailable: false, canWrite: true, requestedWrite: true, requestedConfigure: false, clientName: "Assistant", clientOrigin: null, setupUrl: "https://my.paperclip.app/orgs/new", reverseCompanies: false, hideFirst: false });
   vi.clearAllMocks();
 });
 
@@ -97,7 +97,7 @@ it("defaults eligible writes on and preserves opt-out across organization change
     await page.client.invalidateQueries({ queryKey: ["mcp-request", route.id] });
     expect(page.checkbox().getAttribute("aria-checked")).toBe("false");
     flushSync(() => page.connect().click());
-    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith("/mcp/requests/request-one/consent", { decision: "approve", companyId: "company-one", allowWrites: false }));
+    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith("/mcp/requests/request-one/consent", { decision: "approve", companyId: "company-one", allowWrites: false, allowConfiguration: false }));
     route.id = "request-two";
     page.render();
     await vi.waitFor(() => expect(page.container.querySelector('input[type="radio"]')).not.toBeNull());
@@ -150,7 +150,7 @@ it.each([
       expect(page.checkbox().disabled).toBe(!canWrite);
     } else expect(page.checkbox()).toBeNull();
     flushSync(() => page.connect().click());
-    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith("/mcp/requests/request-one/consent", { decision: "approve", companyId: "company-one", allowWrites }));
+    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith("/mcp/requests/request-one/consent", { decision: "approve", companyId: "company-one", allowWrites, allowConfiguration: false }));
   } finally { page.cleanup(); }
 });
 
@@ -177,7 +177,7 @@ it("denies without granting the default write permission", async () => {
   try {
     await vi.waitFor(() => expect(page.checkbox()?.getAttribute("aria-checked")).toBe("true"));
     flushSync(() => Array.from(page.container.querySelectorAll("button")).find(button => button.textContent === "Cancel")!.click());
-    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith("/mcp/requests/request-one/consent", { decision: "deny", companyId: "company-one", allowWrites: false }));
+    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith("/mcp/requests/request-one/consent", { decision: "deny", companyId: "company-one", allowWrites: false, allowConfiguration: false }));
   } finally { page.cleanup(); }
 });
 
@@ -192,5 +192,20 @@ it("does not fetch client-selected favicons or trust names for branding", async 
     expect(page.container.querySelector('img[src^="https://"]')).toBeNull();
     expect(page.container.querySelector('img[src="/brands/claude-color.svg"]')).toBeNull();
     expect(api.post).not.toHaveBeenCalled();
+  } finally { page.cleanup(); }
+});
+
+
+it("requires a separate unchecked configuration choice and submits only explicit consent", async () => {
+  route.requestedConfigure = true;
+  const page = setup();
+  try {
+    await vi.waitFor(() => expect(page.container.querySelector("#mcp-allow-configuration")).not.toBeNull());
+    const checkbox = page.container.querySelector("#mcp-allow-configuration") as HTMLButtonElement;
+    expect(checkbox.getAttribute("aria-checked")).toBe("false");
+    expect(page.checkbox().getAttribute("aria-checked")).toBe("true");
+    flushSync(() => checkbox.click());
+    flushSync(() => page.connect().click());
+    await vi.waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ allowWrites: true, allowConfiguration: true })));
   } finally { page.cleanup(); }
 });

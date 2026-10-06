@@ -11,7 +11,7 @@ const valid: DelegationEvidence = {
 describe("public MCP durable-state oracle", () => {
   it("accepts a complete independently observed outcome", () => {
     expect(gradeDelegation(valid).every((check) => check.passed)).toBe(true);
-    expect(new Set(publicMcpCaseDefinitions.map((entry) => entry[0])).size).toBe(13);
+    expect(new Set(publicMcpCaseDefinitions.map((entry) => entry[0])).size).toBe(21);
   });
   it.each([
     ["no evidence", null],

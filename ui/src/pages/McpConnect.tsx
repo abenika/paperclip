@@ -46,6 +46,7 @@ export function McpDevicePage({ initialCode }: { initialCode?: string } = {}) {
 function McpConnectRequest({ id, device = false, onEditCode }: { id: string; device?: boolean; onEditCode?: () => void }) {
   const [companyId, setCompanyId] = useState("");
   const [writeEnabled, setWriteEnabled] = useState(true);
+  const [configurationEnabled, setConfigurationEnabled] = useState(false);
   const [deviceResult, setDeviceResult] = useState<"approved" | "denied" | null>(null);
   const request = useQuery({ queryKey: [device ? "mcp-device" : "mcp-request", id], queryFn: () => api.get<McpConnectionRequest>(device ? `/mcp/device?user_code=${encodeURIComponent(id)}` : `/mcp/requests/${encodeURIComponent(id)}`), retry: false });
   const data = request.data;
@@ -60,7 +61,7 @@ function McpConnectRequest({ id, device = false, onEditCode }: { id: string; dev
   const company = data?.companies.find((item) => item.id === selectedCompanyId);
   const allowWrites = Boolean(data?.requestedWrite && company?.canWrite && writeEnabled);
   const consent = useMutation({
-    mutationFn: (decision: "approve" | "deny") => api.post<{ redirectUrl?: string; status?: "approved" | "denied" }>(device ? "/mcp/device/consent" : `/mcp/requests/${encodeURIComponent(id)}/consent`, { decision, companyId: selectedCompanyId || undefined, allowWrites: decision === "approve" && allowWrites, ...(device ? { userCode: id } : {}) }),
+    mutationFn: (decision: "approve" | "deny") => api.post<{ redirectUrl?: string; status?: "approved" | "denied" }>(device ? "/mcp/device/consent" : `/mcp/requests/${encodeURIComponent(id)}/consent`, { decision, companyId: selectedCompanyId || undefined, allowWrites: decision === "approve" && allowWrites, allowConfiguration: decision === "approve" && Boolean(data?.requestedConfigure && company?.canWrite && configurationEnabled), ...(device ? { userCode: id } : {}) }),
     onSuccess: ({ redirectUrl, status }) => { if (device && status) setDeviceResult(status); else if (redirectUrl) window.location.assign(redirectUrl); },
   });
   if (deviceResult) return <div className="mx-auto max-w-xl py-10"><Card className="block space-y-4 p-6"><Paperclip className="size-8" /><h1 className="text-xl font-semibold">{deviceResult === "approved" ? "Access approved" : "Connection declined"}</h1><p className="text-sm">{deviceResult === "approved" ? "Return to your assistant. It will finish connecting automatically." : "No access was granted. You can start a new connection from your assistant."}</p><Button variant="outline" asChild><Link to="/">Back to Paperclip</Link></Button></Card></div>;
@@ -101,6 +102,12 @@ function McpConnectRequest({ id, device = false, onEditCode }: { id: string; dev
             </span>
             <span>Allow write access and creating tasks as me</span>
           </label>}
+          {data.requestedConfigure && <label htmlFor="mcp-allow-configuration" className="flex items-start gap-3 text-sm leading-6">
+            <span className="flex h-6 shrink-0 items-center">
+              <Checkbox id="mcp-allow-configuration" checked={Boolean(company?.canWrite && configurationEnabled)} disabled={!company?.canWrite || consent.isPending} onCheckedChange={(checked) => setConfigurationEnabled(checked === true)} />
+            </span>
+            <span>Allow configuring agents, projects and skills as me</span>
+          </label>}
           {company && !company.canWrite && <p className="text-sm text-muted-foreground">Your role in this organization is read-only.</p>}
           {consent.error && <p className="text-sm text-destructive">{consent.error.message}</p>}
           <div className="flex items-center justify-between gap-3">
@@ -125,7 +132,8 @@ export function AssistantConnectionsPage() {
     {connections.data?.map((connection) => <Card key={connection.id} className="block space-y-2 p-4">
       <h2 className="font-medium">{connection.clientName}</h2>
       <p className="text-sm text-muted-foreground">Organization: {connection.companyName}</p>
-      <p className="text-sm">{connection.scopes.includes("paperclip:write") ? "Read, create tasks and comment" : "Read only"}</p>
+      <p className="text-sm">{connection.scopes.includes("paperclip:write") ? "Read and edit work" : "Read only"}</p>
+      {connection.scopes.includes("paperclip:configure") && <p className="text-sm">Configure agents, projects and skills</p>}
       {connection.revokedAt ? <p className="text-sm text-muted-foreground">Revoked</p> : <Button variant="outline" disabled={revoke.isPending} onClick={() => revoke.mutate(connection.id)}>Revoke connection</Button>}
     </Card>)}
     <Link className="text-sm underline" to="/">Back to Paperclip</Link>

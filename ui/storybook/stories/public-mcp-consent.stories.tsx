@@ -110,3 +110,24 @@ export const HostedOrganizationUnavailable: Story = { parameters: { fixture: { r
   await expect(c.queryByRole("radio")).not.toBeInTheDocument();
   await expect(c.queryByRole("link", { name: "Create a hosted organization" })).not.toBeInTheDocument();
 } };
+
+
+export const ConfigurationConsent: Story = {
+  parameters: { fixture: { request: { requestedConfigure: true } } },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    const configure = await c.findByRole("checkbox", { name: "Allow configuring agents, projects and skills as me" });
+    await expect(configure).not.toBeChecked();
+    await expect(c.getByRole("checkbox", { name: "Allow write access and creating tasks as me" })).toBeChecked();
+    await userEvent.click(configure);
+    await userEvent.click(c.getByRole("button", { name: "Connect organization" }));
+    await expect(consentSubmission).toHaveBeenCalledWith(expect.objectContaining({ allowConfiguration: true, allowWrites: true }));
+  },
+};
+export const ConfigurationReadOnlyRole: Story = {
+  parameters: { fixture: { request: { requestedConfigure: true, companies: [{ ...request.companies[0], canWrite: false }] } } },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement);
+    await expect(await c.findByRole("checkbox", { name: "Allow configuring agents, projects and skills as me" })).toBeDisabled();
+  },
+};

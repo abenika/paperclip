@@ -437,3 +437,50 @@ and unavailable-organization variants remain separately inspectable.
 Apply the additive nullable request-column migration before running this tenant
 version, and deploy tenant support before the Cloud broker that sends the binding.
 Existing direct requests and grants are unchanged.
+
+## Expanded direct assistant tools
+
+Direct instance connections expose 37 explicitly registered operations. The central
+public directory broker retains its original ten tools and rejects expanded calls.
+The existing experimental setting gates both surfaces; sharing a setup link still
+conveys no authority. Reconnect and explicitly check **Allow configuring agents,
+projects and skills as me** to grant `paperclip:configure`. This new checkbox starts
+unchecked. Existing write connections do not acquire it, including after refresh.
+Normal Paperclip permissions are required in addition to the connection scope.
+
+- Work (`paperclip:write`): update, finish or block tasks; write Markdown documents;
+  register or update deliverables; upload attachments. Assignment and status changes
+  can schedule agents. Pending execution reviews must be decided in Paperclip.
+- Configuration (`paperclip:configure`): edit existing agents, model/budget and
+  existing connection bindings; edit instructions; create/update projects and choose
+  accessible repositories; create/update organization skills and their files.
+  Credentials, execution commands, policies and agent creation are excluded.
+- Reads (`paperclip:read`): task/document history, agent instructions, skill files,
+  accessible repository choices and attachment downloads. Native domain read
+  permissions still apply. Revision IDs from reads are required for content edits.
+
+`paperclip_search_api` describes the same allowlisted named operations and their
+schemas. `paperclip_call_api` takes an operation identifier and validated arguments.
+It cannot accept an arbitrary URL, REST path, credential or actor override. Both
+interfaces share scope checks and mutation receipts. Reuse the same request UUID
+and arguments after a timeout. An unknown result means execution is uncertain;
+inspect current state or retry that identity instead of starting another action.
+
+To attach a video, compute its byte size and SHA-256, then call
+`paperclip_get_upload_url` with its task, filename, content type and request UUID.
+PUT the exact bytes using the returned Content-Type. Success returns the saved
+attachment immediately; **there is no completion call**. Recover a lost response
+by repeating the upload or requesting its URL with the same identity. Conflicting
+bytes are rejected. `paperclip_list_deliverables` includes attachments, documents
+and work products; `paperclip_get_download_url` downloads one authorized attachment.
+Replacing a binary deliverable uses a new attachment and updates its reference.
+
+File URLs are ten-minute, transfer-specific credentials: keep them out of chat and
+logs. Only their hashes are stored. Use host HTTP/file tools to send/receive bytes;
+if unavailable, upload/download through the Paperclip task page manually. The server
+never fetches a supplied remote URL or reads a supplied local path. Existing file
+type and size limits apply (10 MB default). Grants, membership, organization,
+experimental availability and write authority are checked again during transfer.
+Revocation prevents future use, including of previously issued file URLs. Expired
+pending storage is cleaned on subsequent transfer requests; completed attachments
+remain durable. Cloud deployments also need the narrowly scoped transfer proxy.

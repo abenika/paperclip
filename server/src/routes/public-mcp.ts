@@ -64,7 +64,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
     next();
   });
   router.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource" + PUBLIC_MCP_PATH], (_req, res) => res.json({
-    resource, authorization_servers: [origin], scopes_supported: ["paperclip:read", "paperclip:write"], bearer_methods_supported: ["header"],
+    resource, authorization_servers: [origin], scopes_supported: ["paperclip:read", "paperclip:write", "paperclip:configure"], bearer_methods_supported: ["header"],
     resource_name: "Paperclip",
   }));
   router.get("/.well-known/oauth-authorization-server", (_req, res) => res.json({
@@ -92,14 +92,14 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
     let principal;
     try { if (!token) throw new Error(); principal = await oauth.authenticate(token); }
     catch {
-      res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadata}", scope="paperclip:read paperclip:write", error="invalid_token"`);
+      res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadata}", scope="paperclip:read paperclip:write paperclip:configure", error="invalid_token"`);
       res.status(401).json({ error: "invalid_token" }); return;
     }
     if (req.method !== "POST") { res.setHeader("Allow", "POST"); res.status(405).end(); return; }
     const listTools = async () => ({
       tools: publicMcpCapabilities.map((c) => ({
         name: c.name, description: c.description, inputSchema: z.toJSONSchema(c.schema) as { type: "object"; properties: Record<string, unknown> },
-        annotations: { readOnlyHint: !c.write, destructiveHint: false, idempotentHint: true, openWorldHint: !!c.write },
+        annotations: { readOnlyHint: !c.write && !c.configure, destructiveHint: !!c.destructive, idempotentHint: true, openWorldHint: !!c.write || !!c.configure },
       })),
     });
     const callTool = async (request: z.infer<typeof CallToolRequestSchema>) => {
