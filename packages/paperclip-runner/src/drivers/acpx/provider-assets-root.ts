@@ -30,7 +30,8 @@ export function resolveRunnerProviderAssetsRoot(moduleUrl: string, provider: Nat
       const value = JSON.parse(bytes.toString("utf8")) as { name?: unknown };
       if (value?.name === "@paperclipai/server") {
         // runnerd derives this binding from the verified sidecar in the public
-        // server package. Runtime setup materializes assets alongside that bundle.
+        // server package. Images may carry assets alongside that bundle; local
+        // explicit setup uses the OS-account cache when package assets are absent.
         packageRoot = join(dirname(canonicalManifest), "dist/vendor/paperclip-runner");
         if (realpathSync(packageRoot) !== packageRoot) throw new Error("Vendored runner directory is not contained by its server package");
       } else if (value?.name === RUNNER_PACKAGE_NAME) {

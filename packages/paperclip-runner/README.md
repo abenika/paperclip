@@ -110,7 +110,12 @@ Verified distributions are build-owned; no provider accepts an arbitrary executa
 See [the rich ACP capability report](../../doc/architecture/runner-rich-acp-capabilities.md).
 
 Install Cursor explicitly with `paperclipai runtime setup cursor`; npm installation
-does not download it. Configure a company secret binding for `CURSOR_API_KEY` or
+does not download it. Run setup as the OS user that runs Paperclip (the service
+account for a managed service). Setup writes to that account's
+`~/.paperclip/runtimes/cursor/<platform>-<arch>/<closure-sha256>`, so a system-wide
+npm installation can remain read-only. Isolated provider HOME/XDG settings do not
+redirect this cache. Container images continue to use their packaged assets.
+Configure a company secret binding for `CURSOR_API_KEY` or
 `CURSOR_AUTH_TOKEN`, select Cursor in the Runner configuration, and select an exact
 model ID. Agent is the default; Plan and Ask are explicit modes. Paperclip semantic
 questions are supported. Native AskQuestion and authoritative per-run dollar usage
@@ -123,6 +128,9 @@ from its matching Daytona image. Run `stage:release-binaries` with a manifest th
 binds each daemon path and SHA-256, plus `remoteProviderPack: {path, sha256}` for
 the actual image's `provider-pack.json`. Assemble these assets after the normal
 build and include them in the server's vendored Runner output before npm packing.
+Assembly requires the provider pack's source revision to match `sourceRevision`
+and its ACPX profiles and Cursor distribution to match the current source pins.
+An independently rehashed older pack is rejected.
 Ordinary remote Cursor startup uses the packaged Linux daemon and verifies every
 image asset against that manifest. A mismatched image fails before the provider
 starts; install the matching package and image together.

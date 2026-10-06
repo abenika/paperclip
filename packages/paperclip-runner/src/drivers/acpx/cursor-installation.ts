@@ -5,11 +5,12 @@ import type { NativeAcpxDistributionInput } from "./native-distribution-integrit
 import { CURSOR_PINNED_VERSION, CURSOR_FIXED_ARGUMENTS } from "./cursor-launch-policy.js";
 import { QUALIFIED_ACPX_PROFILES, type QualifiedAcpxProfile } from "./qualified-profiles.js";
 import { resolveRunnerProviderAssetsRoot } from "./provider-assets-root.js";
+import { resolveCursorDistributionRoot } from "./cursor-runtime-cache.js";
 
 import { CURSOR_DISTRIBUTION_PINS } from "./generated-profiles.js";
 export { CURSOR_PINNED_VERSION } from "./cursor-launch-policy.js";
 
-/** Trusted package assets only: no workspace, PATH, executable override or env root. */
+/** Pinned package assets or OS-user cache; never workspace, PATH or provider env roots. */
 export function cursorNativeDistributionSpec(
   platform: NodeJS.Platform = process.platform,
   architecture: string = process.arch,
@@ -17,7 +18,7 @@ export function cursorNativeDistributionSpec(
   const key = `${platform}-${architecture}`;
   if (!Object.hasOwn(CURSOR_DISTRIBUTION_PINS, key)) throw new Error(`Cursor ${CURSOR_PINNED_VERSION} has no pinned distribution for ${key}`);
   const distribution = CURSOR_DISTRIBUTION_PINS[key as keyof typeof CURSOR_DISTRIBUTION_PINS];
-  const distributionRoot = join(resolveRunnerProviderAssetsRoot(import.meta.url, "cursor"), key);
+  const distributionRoot = resolveCursorDistributionRoot(resolveRunnerProviderAssetsRoot(import.meta.url, "cursor"), distribution.closureSha256, platform, architecture);
   return {
     distributionRoot,
     manifestPath: join(distributionRoot, ".paperclip-cursor-closure.json"),

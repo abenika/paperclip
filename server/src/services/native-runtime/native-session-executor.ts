@@ -1,4 +1,4 @@
-import { QUALIFIED_ACPX_PROFILES, QUALIFIED_ACPX_VERSION } from "../../vendor/paperclip-runner/index.js";
+import { CURSOR_DISTRIBUTION_PINS, QUALIFIED_ACPX_PROFILES, QUALIFIED_ACPX_VERSION } from "../../vendor/paperclip-runner/index.js";
 import { isProviderMode } from "../../vendor/paperclip-runner/index.js";
 import { bundledRemoteProviderPackManifestPath, bundledRemoteRunnerBinary } from "../../vendor/paperclip-runner/index.js";
 import { nativeRetryCancellationEligible, rethrowNativeCancellationLockConflict, assertCancellationRequest, cancellationIntentId as callerCancellationIntentId, cancellationRequestId } from "./native-cancellation-request.js";
@@ -9743,6 +9743,16 @@ function readRemoteProviderPackIdentity(packRoot: string, verifyControllerFiles:
         throw new Error("runner_remote_provider_artifact_incompatible: invalid candidate identity");
       }
       const candidatePath = providerPackRelativePath(candidate.path, "candidate assets");
+      if (provider === "cursor") {
+        const target = `${payload.target.platform}-${payload.target.architecture}`;
+        const distribution = Object.hasOwn(CURSOR_DISTRIBUTION_PINS, target)
+          ? CURSOR_DISTRIBUTION_PINS[target as keyof typeof CURSOR_DISTRIBUTION_PINS] : undefined;
+        if (!distribution || candidate.version !== QUALIFIED_ACPX_PROFILES.cursor.agentServerVersion
+          || candidate.profileDigest !== QUALIFIED_ACPX_PROFILES.cursor.commandDigest
+          || candidate.closureDigest !== `sha256:${distribution.closureSha256}`) {
+          throw new Error("runner_remote_provider_artifact_incompatible: Cursor profile or closure does not match this release");
+        }
+      }
       if (verifyControllerFiles && sha256DirectoryTree(resolve(packRoot, candidatePath)) !== candidate.sha256) {
         throw new Error("runner_remote_provider_artifact_incompatible: candidate asset tree digest mismatch");
       }

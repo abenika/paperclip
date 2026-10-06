@@ -913,3 +913,32 @@ its original profile and digest; committed plan-wait records remain inspectable.
 Existing v11 live evidence and platform artifacts retain their original identities
 and do not certify this source revision. The PR verification section records the
 repository checks and any outstanding release verification for this follow-up.
+
+## Apex review fixes (2026-10-06)
+
+Apex reviewed `beadd3654bcb1de79c203fb8ddccca714429372b` and returned 3/5
+with two release-path findings. Explicit setup now installs the pinned runtime
+under the OS account's cache, independently of npm package ownership. Setup and
+execution resolve the same closure-keyed path even when the provider has an
+isolated HOME. Image-owned assets remain authoritative. Setup must run as the
+Paperclip service account; it does not make root-owned private assets public.
+
+Release assembly requires the Linux image manifest and verifies its canonical
+payload digest, source revision, ACPX profiles and Cursor version/profile/closure
+against current source pins before writing staged assets. The controller also
+checks current Cursor identity in both normal and legacy inventories. Rehashing
+an old manifest cannot authorize it. These checks use existing release metadata;
+they introduce no model catalog or model restriction.
+
+Verification: 12 installer-layout and release-assembly Node checks, 656 ACPX
+tests (seven skips), and all 530 native-session executor tests passed. Recursive
+typecheck and the full build passed. Initial sandbox runs failed on host IPC and
+private runtime-directory permissions; the same suites passed with those host
+facilities available. A fresh built provisioner installed the real pinned Cursor
+distribution from a read-only public server package layout on macOS ARM64. The
+ESM repeat verified the same cache, and runtime admission verified a private
+execution snapshot without spawning a provider or sending a model request.
+The package stayed read-only and contained no downloaded runtime. Historical
+live matrices retain their original identities; these fixes do not certify a
+new v13 package/image combination. Follow-up Apex and CI results belong to the
+PR head reported by GitHub.

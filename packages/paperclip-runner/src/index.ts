@@ -1,4 +1,5 @@
 export * from "./catalog/index.js";
+export { CURSOR_DISTRIBUTION_PINS } from "./drivers/acpx/generated-profiles.js";
 export * from "./contracts/control-plane-port.js";
 export * from "./contracts/completion-result.js";
 export * from "./contracts/codex.js";

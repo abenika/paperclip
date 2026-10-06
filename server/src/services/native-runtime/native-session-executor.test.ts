@@ -29,6 +29,8 @@ import {
   type Db,
 } from "@paperclipai/db";
 import {
+  CURSOR_DISTRIBUTION_PINS,
+  QUALIFIED_ACPX_PROFILES,
   acpxRuntimeSessionDirectoryName,
   resolveAcpxRuntimeRoot,
   createPrpSemanticToolInputEnvelope,
@@ -1157,15 +1159,26 @@ describe("remote provider pack manifest", () => {
     const cursorPath = "provider-assets/cursor/linux-x64";
     await mkdir(join(root, cursorPath), { recursive: true });
     await writeFile(join(root, cursorPath, "runtime"), "pinned Cursor runtime");
-    Object.assign(payload, { providers: { cursor: { version: "2026.09.26-dd393fe", profileDigest: digest("cursor-profile"),
-      closureDigest: digest("cursor-closure"), qualification: "qualified", path: cursorPath,
-      sha256: sha256DirectoryTree(join(root, cursorPath)) } } });
+    const cursor = { version: QUALIFIED_ACPX_PROFILES.cursor.agentServerVersion, profileDigest: QUALIFIED_ACPX_PROFILES.cursor.commandDigest,
+      closureDigest: `sha256:${CURSOR_DISTRIBUTION_PINS["linux-x64"].closureSha256}`, qualification: "qualified", path: cursorPath,
+      sha256: sha256DirectoryTree(join(root, cursorPath)) };
+    Object.assign(payload, { providers: { cursor } });
     await writeManifest();
-    expect(readRemoteProviderPackManifest(root).payload.providers?.cursor?.version).toBe("2026.09.26-dd393fe");
+    expect(readRemoteProviderPackManifest(root).payload.providers?.cursor?.version).toBe(QUALIFIED_ACPX_PROFILES.cursor.agentServerVersion);
     const releaseMetadata = await mkdtemp(join(tmpdir(), "paperclip-image-identity-"));
     const manifestPath = join(releaseMetadata, "provider-pack.json");
     await cp(join(root, "provider-pack.json"), manifestPath);
     expect(readBundledRemoteProviderPackManifest(manifestPath).digest).toBe(readRemoteProviderPackManifest(root).digest);
+    // Rehashing an internally valid old pack must not admit a different release.
+    for (const field of ["version", "profileDigest", "closureDigest"] as const) {
+      const previous = cursor[field];
+      Object.assign(cursor, { [field]: field === "version" ? "older-cursor" : digest(`old-${field}`) });
+      await writeManifest(); await cp(join(root, "provider-pack.json"), manifestPath);
+      expect(() => readRemoteProviderPackManifest(root)).toThrow("Cursor profile or closure");
+      expect(() => readBundledRemoteProviderPackManifest(manifestPath)).toThrow("Cursor profile or closure");
+      Object.assign(cursor, { [field]: previous });
+    }
+    await writeManifest(); await cp(join(root, "provider-pack.json"), manifestPath);
     // A metadata-only release identity is never accepted as a host asset tree.
     expect(() => readRemoteProviderPackManifest(releaseMetadata)).toThrow();
     const originalTarget = payload.target;
