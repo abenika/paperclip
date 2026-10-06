@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use paperclip_runner_core::acpx_provider_session::{
-    AcpxPermissionMode, AcpxProviderSession, AcpxProviderSessionConfig, AcpxProviderSessionIdentity,
+    AcpxPermissionMode, AcpxProviderRuntimePolicy, AcpxProviderSession, AcpxProviderSessionConfig,
+    AcpxProviderSessionIdentity,
 };
 use paperclip_runner_core::acpx_sidecar_transport::AcpxSidecarTransportConfig;
 use paperclip_runner_core::generated_acpx_sidecar_contract::GeneratedAcpxSidecarCommand as GoalCommand;
@@ -156,28 +157,19 @@ fn validates_qualified_policy_and_tool_catalog_before_spawning() {
 }
 
 #[test]
-fn admits_custom_claude_models_and_legacy_codex_profile() {
-    for (agent, model) in [
-        ("codex", "gpt-5.6-sol"),
-        ("claude", "claude-sonnet-5"),
-        ("claude", "claude-opus-5"),
-        ("claude", "custom-provider-model"),
-        ("grok", "grok-4.7"),
-        ("grok", "future-exact-model"),
-    ] {
-        let mut qualified = config("bootstrap");
-        qualified.agent = agent.to_owned();
-        qualified.model = model.to_owned();
-        qualified.validate().unwrap();
+fn bootstraps_unlisted_models_confirmed_by_the_sidecar_for_every_agent() {
+    for agent in ["claude", "codex", "pi", "grok", "cursor", "copilot"] {
+        let mut selected = config("bootstrap");
+        selected.agent = agent.to_owned();
+        selected.model = "custom/model[context=272k,reasoning=medium]".to_owned();
+        selected.provider_policy = Some(AcpxProviderRuntimePolicy { read_only: false });
+        let mut session = AcpxProviderSession::start(&selected).unwrap();
+        assert_eq!(session.identity().requested_model, selected.model);
+        assert_eq!(session.identity().effective_model, selected.model);
+        session
+            .shutdown("model verification test complete")
+            .unwrap();
     }
-
-    let mut drifted = config("bootstrap");
-    drifted.model = "custom-codex-model".to_owned();
-    assert!(drifted
-        .validate()
-        .unwrap_err()
-        .to_string()
-        .contains("exact model"));
 }
 
 #[test]
