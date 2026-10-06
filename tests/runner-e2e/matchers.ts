@@ -172,7 +172,7 @@ export async function evaluateMatchers(
 
 export function persistedFinalRunMessage(
   comments: Array<{ id: string; createdByRunId?: string | null; body?: string | null }>,
-  run: { id: string; resultJson?: Record<string, unknown> | null },
+  run: { id: string; runtimeMode?: string; resultJson?: Record<string, unknown> | null },
 ): string {
   const runComments = comments.filter(comment => comment.createdByRunId === run.id);
   const decision = run.resultJson?.presentationDecision;
@@ -183,5 +183,8 @@ export function persistedFinalRunMessage(
   if (typeof selectedId === "string") {
     return runComments.find(comment => comment.id === selectedId)?.body ?? "";
   }
+  // Native finalization can publish a deliverable-preparation comment before
+  // its response decision. That earlier comment is not the selected reply.
+  if (run.runtimeMode === "native") return "";
   return runComments.map(comment => comment.body ?? "").join("\n");
 }

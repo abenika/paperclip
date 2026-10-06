@@ -1858,17 +1858,24 @@ for (const execution of executions) {
         terminal = await pollUntil({
           label: `final agent comment for issue ${issue.id}`,
           deadlineAt: Math.min(deadlineAt, Date.now() + 30_000),
-          load: loadTaskState,
+          load: async () => {
+            const state = await loadTaskState();
+            const finalRun = sortRunsChronologically(state.taskRuns).at(-1);
+            if (!finalRun) return state;
+            // The compact run list omits the native presentation receipt.
+            // Poll its public detail together with comments so an earlier
+            // deliverable-preparation comment cannot settle this wait.
+            const detailed = await api.get<RunRecord>(`/api/heartbeat-runs/${finalRun.id}`);
+            return { ...state, taskRuns: state.taskRuns.map(run => run.id === detailed.id ? detailed : run) };
+          },
           accept: ({ taskRuns, comments }) => {
             if (!matchesRunCount(execution.task, taskRuns.length)) {
               return false;
             }
             const finalRun = sortRunsChronologically(taskRuns).at(-1);
-            return comments.some(
-              (comment) =>
-                comment.createdByRunId === finalRun?.id &&
-                comment.authorAgentId === fixtures!.agent.id,
-            );
+            return Boolean(finalRun && persistedFinalRunMessage(
+              comments.filter(comment => comment.authorAgentId === fixtures!.agent.id), finalRun,
+            ).trim());
           },
           reject: ({ taskRuns }) => definitiveRunFailure(taskRuns),
         }).catch(() => terminal);
