@@ -58,7 +58,6 @@ const serverEnvironment = buildPaperclipServerEnvironment(installedRelease
   PAPERCLIP_BIND_HOST: "127.0.0.1",
   PAPERCLIP_DEPLOYMENT_MODE: process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP === "1" ? "authenticated" : "local_trusted",
   ...(process.env.PAPERCLIP_RUNNER_E2E_PUBLIC_MCP === "1" ? {
-    PAPERCLIP_PUBLIC_MCP_ENABLED: "true",
     PAPERCLIP_PUBLIC_URL: `http://127.0.0.1:${port}`,
     PAPERCLIP_AUTH_PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
     PAPERCLIP_AUTH_BASE_URL_MODE: "explicit",
