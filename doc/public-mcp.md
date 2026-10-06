@@ -104,7 +104,7 @@ without a store listing. For Codex CLI:
 
 ```sh
 codex mcp add paperclip --url https://YOUR-PAPERCLIP-HOST/mcp/paperclip
-codex mcp login paperclip --scopes paperclip:read,paperclip:write,offline_access
+codex mcp login paperclip --scopes paperclip:read,paperclip:write,paperclip:configure,offline_access
 ```
 
 For Claude Code:
@@ -206,7 +206,9 @@ expire one minute after consent and are single-use. Access tokens expire in
 fifteen minutes. `offline_access` issues a thirty-day rotating refresh token;
 replaying a consumed refresh token revokes its entire grant. Tokens and codes
 are hashed at rest. `paperclip:read` is required; `paperclip:write` adds only task
-creation and comments. Scope expansion requires a new consent flow.
+work and attachment mutations on direct connections. The separately consented
+`paperclip:configure` scope covers allowed configuration operations. Scope expansion
+requires a new consent flow; the directory broker retains its original operations.
 
 Each grant records the person, client, company, resource and scopes. Membership
 and company availability are rechecked at execution. Instance admin status does
@@ -225,7 +227,7 @@ undo in-flight mutations. Manage existing tasks and execution in Paperclip.
 Audit records identify the human caller and connection/client for mutations.
 OAuth credential bodies and redirect locations are redacted from HTTP logs.
 
-## Tool surface
+## Original directory tool surface
 
 | Tool | Effect |
 | --- | --- |
@@ -236,13 +238,13 @@ OAuth credential bodies and redirect locations are redacted from HTTP logs.
 | `paperclip_read_task` | Current task plus recent comments/history |
 | `paperclip_create_task` | Assigned task, submitted to existing scheduling |
 | `paperclip_add_comment` | Human feedback; may wake or queue work |
-| `paperclip_list_deliverables` | Documents and work-product references |
-| `paperclip_read_document` | Durable document body |
+| `paperclip_list_deliverables` | Documents, attachments and work-product references |
+| `paperclip_read_document` | Durable document body and current revision |
 | `paperclip_pending_approvals` | Pending approvals and existing decision links |
 
 Every company-scoped call requires its explicit authorized company ID. The
-server emits bounded projections rather than agent configurations or upstream
-credentials. URLs include the company's prefix so unrelated browser company
+server emits bounded projections without upstream credentials. Direct connections
+can read the allowed operating configuration through the expanded tools below. URLs include the company's prefix so unrelated browser company
 selection cannot redirect the user to a different team's approval interface.
 
 Writes require a UUID `requestId`, unique per intended action. A durable receipt
@@ -260,8 +262,8 @@ task is not proof that an agent started or finished it.
 
 ## Hosted onboarding and release gates
 
-When `PAPERCLIP_CLOUD_API_ORIGIN` is present, consent links to the existing Cloud
-`/orgs/new` flow in a separate tab. Provisioning, mission/template selection,
+Create a hosted organization through Cloud before approving a connection.
+Provisioning, mission/template selection,
 model credentials, execution capacity and spending remain owned by Cloud.
 Installing a plugin never provisions a company or starts paid agents.
 
@@ -312,7 +314,8 @@ legacy MCP. It advertises `events` through `server/discover` and implements
 `events/list`, `events/subscribe`, and `events/unsubscribe`. MCP 2.0 requests
 include matching `MCP-Protocol-Version`/`Mcp-Method` headers, per-request version
 and client-capability metadata, and `Mcp-Name` for tool calls. Existing
-initialize-based clients keep the ten-tool connection.
+initialize-based direct clients receive the same expanded tool catalog. The central
+directory broker keeps its original ten-tool connection.
 
 | Event | Required filters | Payload |
 | --- | --- | --- |
@@ -484,3 +487,15 @@ experimental availability and write authority are checked again during transfer.
 Revocation prevents future use, including of previously issued file URLs. Expired
 pending storage is cleaned on subsequent transfer requests; completed attachments
 remain durable. Cloud deployments also need the narrowly scoped transfer proxy.
+
+Instruction edits require a managed instruction file with a current revision/hash.
+The legacy `promptTemplate.legacy.md` entry has no version protection, so MCP
+rejects edits to it with `MCP_LEGACY_INSTRUCTIONS_UNVERSIONED`. Migrate the legacy
+prompt to a managed instruction file in Paperclip first; native runner behavior
+is unchanged.
+
+Client-side tool approval remains separate from OAuth consent. For example, a
+noninteractive Codex invocation that forbids tool approvals may read successfully
+but refuse a write. Approve the intended tool in the host rather than weakening
+server permissions. The [qualification record](plans/2026-10-06-expanded-assistant-mcp-verification.md)
+distinguishes paid model tests, actual-client proof and staging verification.

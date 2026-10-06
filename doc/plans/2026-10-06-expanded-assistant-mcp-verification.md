@@ -1,0 +1,51 @@
+# Expanded assistant MCP qualification — 2026-10-06
+
+This record separates model qualification from client interoperability and deployment. Core PR [15380](https://github.com/paperclipai/paperclip/pull/15380) and Cloud PR [678](https://github.com/paperclipai/paperclip-cloud/pull/678) contain implementation and final delivery status. Merging requires a separate action.
+
+## Paid Product E2E
+
+All eight added `public-mcp` cases passed on each of three models, with automatic retries disabled. Each case uses a real runner worker, a separate assistant, and independent durable-state assertions. The grader requires the expected report, one successful worker execution and no extra runs. Task editing additionally requires newly attributed human activity in edit → block → finish order. File tests independently compare SHA-256 hashes and automatic attachment creation. Calibration tests reject fabricated completion, missing transitions, wrong actors/order and secret leakage.
+
+| Model | Final result | Source | Campaign |
+| --- | --- | --- | --- |
+| `gpt-5.4-mini` | 8/8 | `9089870a4da4b03b12f7eab0afd134311b840a02` | `local-2026-10-06T20-28-55-414Z` |
+| `claude-haiku-4-5-20251001` | 8/8 | same | same |
+| `claude-sonnet-4-6` | 8/8 | `b9c4be5f0f8a3f1143f83edf3e8a047d02888eea` | `local-2026-10-06T20-44-06-234Z` |
+
+Cases: `expanded-task-edit`, `expanded-documents`, `expanded-files`, `expanded-agent-config`, `expanded-projects`, `expanded-skills`, `expanded-api`, `expanded-permissions`. All final runs use suite fingerprint `d86dc8451519467b8680e92b7d6c3bee975a4bff419e6beaace2d8eeb5ce43f5` and grader v15. Sonnet ran after the final legacy-instruction guard; Mini/Haiku ran before that narrow rejection was added. The latter guard has named-tool/API route regressions at the final runtime revision.
+
+The final cheap-model campaign reports $1.5474926 estimated assistant cost plus $0.4521314 provider-reported worker cost: **$1.999624 known, plus unpriced Mini worker usage**. Sonnet reports $4.175256 estimated assistant cost plus $1.6985064 worker cost: **$5.8737624**. These are qualification campaign costs, not total development spend. Cached usage, provider-reported costs and estimates remain separate in the evidence.
+
+The selected new cases do not cover the entire existing 63-case/model `public-mcp` suite; campaign `complete: false` reflects that coverage distinction, not failed selected cases. Both final campaigns executed every selected case and passed cleanup. `billing.complete` separately represents missing pricing.
+
+### Earlier attempts retained
+
+| Campaign time (UTC) | Passed/executed | Result and response |
+| --- | --- | --- |
+| 19:42:13 | 0/1 | Worker used the wrong report key. Diagnostic run did not record source SHA; do not treat it as qualified evidence. |
+| 19:46:03 | 0/2 | Wrong report key and invalid UUID. Added useful sanitized validation detail. |
+| 19:53:49 | 2/13 | Canceled incomplete campaign; shared-memory exhaustion, deliberate transfer URL redaction, stale UI marker and incomplete worker execution. Preserved completed results; fixed environment and evidence sanitization. |
+| 20:04:15 | 12/16 | Missing explicit worker completion/readback and wrong report marker. Made worker instructions explicit, preserving durable success assertions. |
+| 20:13:15 | 8/8 | Earlier Sonnet run passed. Reran with stronger activity-order grading and final instruction guard. |
+
+[Machine-readable evidence](2026-10-06-expanded-assistant-mcp-eval-evidence.jsonl) retains every available case result, source and suite fingerprints, failed matcher details, usage and costs. Raw transcripts/results remain in the implementation worktree under `tests/runner-e2e/results/<campaign>/`; paths in the evidence point to those retained files. The checked-in projection excludes credentials and transfer URLs. Missing campaign-level billing from the canceled run is not invented.
+
+## Actual clients, independent of model evals
+
+The local disposable instance was created with `paperclipai test-drive`, then configured for authenticated sign-in. No worktree database clone was used.
+
+- **Codex CLI 0.153.4:** native OAuth/CIMD; read organization and agents, updated EXP-1, wrote the report document. A first attempt with a ChatGPT login could not use Mini, so the authorized API provider was used. A noninteractive approval-disabled attempt correctly refused mutation; explicitly approved only the two fixture mutation tools for that invocation.
+- **Claude Code 2.1.245:** Paperclip device OAuth and the credential-protected stdio bridge. A later conversation read Codex's report, performed a revision-checked update, and read it back. Revision 2 preserved the original body and appended its own verification line.
+- **OpenCode 1.18.17:** native remote OAuth; read organization/agents, created and updated a project, uploaded a file, downloaded it, compared hashes, then registered the existing attachment as a deliverable and listed it alongside the report. No completion tool was called.
+
+The 79-byte file round trip matched SHA-256 `fdec086f7051ebf67a596661e7567d8a53c471d6b86e63303da7734b8afc046a`. OpenCode's shell tool UI can display temporary transfer URLs in history; walkthrough captures use its safe summary instead. Transfer URLs are credentials even though short-lived.
+
+Storybook's configuration consent story renders the production page and exercises opt-in configuration. Protocol/domain tests separately assert unchecked configuration defaults and that old grants never gain this scope through refresh.
+
+## Regression and deployment checks
+
+At runtime revision `b9c4be5f0f8a3f1143f83edf3e8a047d02888eea`, 75 focused MCP tests pass. The combined catalog/grader checks pass (56 tests); full workspace typecheck/build and token gates passed at the immediately preceding merge revision, with server typecheck repeated after the final guard. Latest-head CI and the full local test run are tracked in the PR rather than inferred from these narrower results.
+
+Cloud revision `7b7ad76b302282c9fe8007185fa80ef37ddded6d` passes 2,488 tests, with 73 explicit skips and no failures. The opt-in published migration replay also passes separately. The replay verifies that the exact earlier MCP preview lineage can rejoin mainline without losing OAuth clients/grants/tokens, pending PKCE/device requests, tasks or upload receipts. It uses immutable published package archives and tests an idempotent second migration pass. All other migration histories remain subject to the existing strict checks.
+
+Butter deployment and the hosted screenshot walkthrough are separate acceptance gates. Consult the PR verification section for their final outcome; local results above do not substitute for hosted proof. Browser directory installation, store approval and hosted MCP Events are outside this direct-connection expansion and are not claimed by these tests.

@@ -25,4 +25,8 @@ Outside assistants manage work and configuration as the connected person through
 ## Execution record
 - Core: codex/expanded-assistant-mcp in the managed expanded-assistant-mcp worktree.
 - Cloud: codex/expanded-assistant-mcp in /private/tmp/paperclip-cloud-expanded-mcp.
-- Implementation started; verification and deployment pending.
+- Core PR: https://github.com/paperclipai/paperclip/pull/15380; Cloud PR: https://github.com/paperclipai/paperclip-cloud/pull/678. Neither is merged by this task.
+- Implementation includes 37 direct tools, configuration consent, durable transfer tickets, Cloud routing and the ten-tool directory boundary.
+- Paid qualification: all eight expanded cases passed on Mini, Haiku and Sonnet (24/24). Source and suite fingerprints, failures, costs and limitations are preserved in the [verification record](2026-10-06-expanded-assistant-mcp-verification.md).
+- Actual local Codex, Claude Code and OpenCode clients completed reads and mutations; OpenCode's file round trip matched by SHA-256. Configuration consent has interactive Storybook coverage.
+- Review fixes cover pending native retries, model-specific reasoning configuration and legacy instruction revision safety. Butter staging and final CI are separate delivery gates tracked in the PR verification sections.
