@@ -1355,13 +1355,12 @@ fn rejects_opencode_launch_profile_drift_across_fresh_recovery() {
 }
 
 #[test]
-fn rejects_pi_with_an_unqualified_model_before_starting_a_sidecar() {
+fn rejects_pi_without_an_explicit_model_before_starting_a_sidecar() {
     let directory = temporary_directory("pi-model");
     let config = pi_acpx_config(&directory, "bootstrap");
     let mut payload = pi_prepare_payload(&directory, "bootstrap");
-    // All Pi distribution and policy fields are correct. Admission must reject
-    // the model itself, not rely on the old blanket exclusion of this harness.
-    payload["provider"]["model"] = json!("gpt-5.6-sol");
+    // Distribution and policy are valid, but model selection is still required.
+    payload["provider"]["model"] = json!(" ");
     let mut executor = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
     let error = executor
         .execute(&command(1, "run.prepare", payload))
