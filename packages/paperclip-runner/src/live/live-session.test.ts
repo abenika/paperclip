@@ -1182,7 +1182,7 @@ describe("Capability live runnerd and Codex session", () => {
     });
     const session = await service.create({
       provider: "acpx", acpxAgent,
-      requestedModel: acpxAgent === "pi" ? "openrouter/deepseek/deepseek-v4-flash-0731" : "exact-model",
+      requestedModel: "explicit-test-model",
     });
     const result = await session.sendMessage("Orient to this task.");
     expect(result.status).toBe("completed");

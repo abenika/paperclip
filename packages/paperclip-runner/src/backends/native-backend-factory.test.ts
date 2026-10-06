@@ -99,12 +99,7 @@ function acpxExecution(
     provider: {
       kind: "acpx",
       agent,
-      model:
-        agent === "codex"
-          ? "gpt-5.6-sol"
-          : agent === "pi"
-            ? "openrouter/deepseek/deepseek-v4-flash-0731"
-            : "claude-sonnet-5",
+      model: "explicit-test-model",
       permissionPolicy: "interactive",
       profile: {
         driverKind: "acpx_runtime",
@@ -476,7 +471,7 @@ describe("native backend factory", () => {
     async (agent) => {
       const input = acpxExecution();
       if (input.provider.kind !== "acpx") throw new Error("Invalid ACPX fixture");
-      const model = agent === "grok" ? "grok-4.7" : agent === "claude" ? "claude-sonnet-5" : "gpt-5.6-sol";
+      const model = "explicit-test-model";
       Object.assign(input.provider, { agent, model, profile: resolveQualifiedAcpxProfile(agent, model) });
       const backend = createNativeSessionBackend(input, {
         codexTransportFactory: () => {

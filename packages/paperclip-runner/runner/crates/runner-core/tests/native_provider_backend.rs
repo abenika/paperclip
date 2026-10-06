@@ -199,7 +199,7 @@ fn prepare_payload_with_mode(directory: &Path, agent: &str, mode: &str) -> Value
             "driver": "acpx_runtime",
             "providerVersion": "0.13.1",
             "agent": agent,
-            "model": "gpt-5.6-sol",
+            "model": "explicit-test-model",
             "acpxVersion": "0.13.1",
             "agentServerPackage": "@agentclientprotocol/codex-acp",
             "agentServerVersion": "1.6.2",
@@ -228,7 +228,6 @@ fn prepare_payload_with_mode(directory: &Path, agent: &str, mode: &str) -> Value
 fn pi_prepare_payload(directory: &Path, mode: &str) -> Value {
     let mut payload = prepare_payload_with_mode(directory, "pi", mode);
     let provider = &mut payload["provider"];
-    provider["model"] = json!("openrouter/deepseek/deepseek-v4-flash-0731");
     provider["agentServerPackage"] = json!("pi-acp");
     provider["agentServerVersion"] = json!("0.0.33");
     provider["agentRuntimePackage"] = json!("@earendil-works/pi-coding-agent");
@@ -262,7 +261,6 @@ fn pending_acpx_runtime_request(
             .unwrap() = digest.into();
         let provider = &mut payload["provider"];
         provider["agent"] = json!("claude");
-        provider["model"] = json!("claude-sonnet-5");
         provider["agentServerPackage"] = json!("@agentclientprotocol/claude-agent-acp");
         provider["agentServerVersion"] = json!("0.73.0");
         provider["agentRuntimePackage"] = json!("@anthropic-ai/claude-agent-sdk");

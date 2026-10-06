@@ -42,7 +42,7 @@ fn config(mode: &str) -> AcpxProviderSessionConfig {
             shutdown_grace: Duration::from_millis(100),
         },
         agent: "codex".to_owned(),
-        model: "gpt-5.6-sol".to_owned(),
+        model: "explicit-test-model".to_owned(),
         run_id: "run-1".to_owned(),
         catalog_revision: 1,
         runtime_directory: std::env::temp_dir(),
@@ -270,7 +270,6 @@ fn interactive_permission_requires_an_offered_action_and_acknowledgement() {
     for mode in ["permissions-interactive", "permissions-wrong-ack"] {
         let mut cfg = config(mode);
         cfg.agent = "claude".to_owned();
-        cfg.model = "claude-sonnet-5".to_owned();
         let mut session = AcpxProviderSession::start(&cfg).unwrap();
         session
             .start_turn("turn-1", "Run validation", &std::env::temp_dir())
@@ -309,14 +308,6 @@ fn permission_origin_is_bound_to_the_admitted_connection_and_survives_projection
     for agent in ["claude", "copilot", "cursor", "pi"] {
         let mut cfg = config("permissions-interactive");
         cfg.agent = agent.to_owned();
-        cfg.model = if agent == "claude" {
-            "claude-sonnet-5"
-        } else if agent == "pi" {
-            "openrouter/deepseek/deepseek-v4-flash-0731"
-        } else {
-            "explicit-test-model"
-        }
-        .to_owned();
         if agent == "cursor" {
             cfg.mode = Some("agent".to_owned());
         }
@@ -353,7 +344,6 @@ fn permission_origin_is_bound_to_the_admitted_connection_and_survives_projection
 fn rejects_a_permission_origin_claim_from_another_provider() {
     let mut cfg = config("permissions-forged-origin");
     cfg.agent = "claude".to_owned();
-    cfg.model = "claude-sonnet-5".to_owned();
     let mut session = AcpxProviderSession::start(&cfg).unwrap();
     session
         .start_turn("turn-1", "Request permission", &std::env::temp_dir())

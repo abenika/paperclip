@@ -2278,21 +2278,13 @@ mod tests {
 
     fn descriptor(agent: &str) -> Value {
         let profile = acpx_release_profile(agent).unwrap();
-        let model = match agent {
-            "claude" => "claude-sonnet-5",
-            "cursor" => "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
-            "pi" => "openrouter/deepseek/deepseek-v4-flash-0731",
-            "grok" => "grok-4.7",
-            "copilot" => "explicit-test-model",
-            _ => "gpt-5.6-sol",
-        };
         let mut value = json!({
             "kind": "acpx",
             "provider": "acpx",
             "driver": "acpx_runtime",
             "providerVersion": QUALIFIED_ACPX_VERSION,
             "agent": agent,
-            "model": model,
+            "model": "explicit-test-model",
             "acpxVersion": QUALIFIED_ACPX_VERSION,
             "agentServerPackage": profile.agent_server_package,
             "agentServerVersion": profile.agent_server_version,

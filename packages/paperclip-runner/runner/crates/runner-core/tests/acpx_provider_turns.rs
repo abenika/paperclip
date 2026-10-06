@@ -42,12 +42,7 @@ fn config(mode: &str) -> AcpxProviderSessionConfig {
             "codex"
         }
         .to_owned(),
-        model: if mode.starts_with("controls") {
-            "openrouter/deepseek/deepseek-v4-flash-0731"
-        } else {
-            "gpt-5.6-sol"
-        }
-        .to_owned(),
+        model: "explicit-test-model".to_owned(),
         run_id: "run-1".to_owned(),
         catalog_revision: 1,
         runtime_directory: std::env::temp_dir(),
