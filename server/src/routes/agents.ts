@@ -5345,6 +5345,9 @@ export function agentRoutes(
   });
 
   router.put("/agents/:id/instructions-bundle/file", validate(upsertAgentInstructionsFileSchema), async (req, res) => {
+    if (req.actor.source === "mcp_oauth" && req.body.path === "promptTemplate.legacy.md") {
+      throw unprocessable("Migrate legacy prompt instructions to a managed instruction file in Paperclip before editing through an assistant", { code: "MCP_LEGACY_INSTRUCTIONS_UNVERSIONED" });
+    }
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
     if (!existing) return;

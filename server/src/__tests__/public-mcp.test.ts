@@ -741,6 +741,20 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     } finally { await f.cleanup(); }
   });
 
+  it("rejects unchecked legacy prompt edits through named and generic operations", async () => {
+    const f = await expandedFixture(true);
+    try {
+      const [agent] = await db.insert(agents).values({ companyId: f.company.id, name: "Legacy writer", adapterType: "codex_local", adapterConfig: { instructionsBundleMode: "managed", promptTemplate: "Newer human instructions" } }).returning();
+      for (const base of [{ baseHash: null }, { baseHash: "0".repeat(64) }, { baseRevisionId: randomUUID() }]) {
+        const args = { companyId: f.company.id, agentId: agent!.id, requestId: randomUUID(), file: { path: "promptTemplate.legacy.md", content: "Stale assistant overwrite", ...base } };
+        expect(await f.call("paperclip_update_agent_instructions", args)).toMatchObject({ outcome: "rejected", status: 422, code: "MCP_LEGACY_INSTRUCTIONS_UNVERSIONED" });
+        expect(await f.call("paperclip_call_api", { operationId: "paperclip_update_agent_instructions", arguments: { ...args, requestId: randomUUID() } })).toMatchObject({ outcome: "rejected", status: 422, code: "MCP_LEGACY_INSTRUCTIONS_UNVERSIONED" });
+      }
+      const stored = (await db.select().from(agents).where(eq(agents.id, agent!.id)))[0]!;
+      expect(stored.adapterConfig.promptTemplate).toBe("Newer human instructions");
+    } finally { await f.cleanup(); }
+  });
+
   it("version-checks agent instructions and skill files through the real domain services", async () => {
     const f = await expandedFixture(true);
     try {

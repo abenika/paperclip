@@ -116,7 +116,7 @@ export const expandedMcpCapabilities: Capability[] = [
   },
   {
     name: "paperclip_update_agent_instructions", configure: true, destructive: true,
-    description: "Update an existing agent's instruction file. Requires configuration consent and the revision/hash from a prior read; use null for a new file. Managed paths and normal instruction permissions apply.",
+    description: "Update an existing agent's instruction file. Requires configuration consent and the revision/hash from a prior read; use null for a new file. Managed paths and normal instruction permissions apply. Legacy promptTemplate.legacy.md must be migrated in Paperclip before editing.",
     schema: z.object({ ...agent, requestId, file: upsertAgentInstructionsFileSchema.omit({ clearLegacyPromptTemplate: true }).extend({ path: filePath }).refine(v => v.baseRevisionId !== undefined || v.baseHash !== undefined, "Read the file and provide its baseRevisionId or baseHash") }).strict(),
     run: async (p, a, api) => ({ instructions: await api(p, "PUT", `/agents/${pathId(a.agentId)}/instructions-bundle/file`, a.file) }),
   },
