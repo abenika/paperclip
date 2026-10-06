@@ -1662,10 +1662,10 @@ describe("worktree helpers", () => {
       // A lagging source must also have the prior schema. Deleting only the
       // newest receipt from a fully migrated schema relied on that particular
       // migration being idempotent and breaks when the new migration creates a
-      // table. Build the actual all-but-last schema before shuffling its history.
+      // table. Build the schema before the identity-repair migration, so this
+      // regression keeps testing that repair as later migrations are added.
       const migrationsRoot = new URL("../../../packages/db/src/migrations/", import.meta.url);
       const journal = JSON.parse(fs.readFileSync(new URL("meta/_journal.json", migrationsRoot), "utf8"));
-      // Pin the legacy schema before the identity repair, independent of later migrations.
       const repairIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0309_loving_the_hood");
       expect(repairIndex).toBeGreaterThan(0);
       const priorEntries = journal.entries.slice(0, repairIndex);
@@ -1720,7 +1720,7 @@ describe("worktree helpers", () => {
       if (laggingMigrationState.status !== "needsMigrations") {
         throw new Error("Expected the source migration journal to lag the code journal");
       }
-      expect(laggingMigrationState.pendingMigrations).toHaveLength(journal.entries.length - priorEntries.length);
+      expect(laggingMigrationState.pendingMigrations).toHaveLength(journal.entries.length - repairIndex);
       const expectedAppliedPrefix = laggingMigrationState.availableMigrations.slice(
         0,
         laggingMigrationState.appliedMigrations.length,

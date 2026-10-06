@@ -49,3 +49,18 @@ At runtime revision `b9c4be5f0f8a3f1143f83edf3e8a047d02888eea`, 75 focused MCP t
 Cloud revision `7b7ad76b302282c9fe8007185fa80ef37ddded6d` passes 2,488 tests, with 73 explicit skips and no failures. The opt-in published migration replay also passes separately. The replay verifies that the exact earlier MCP preview lineage can rejoin mainline without losing OAuth clients/grants/tokens, pending PKCE/device requests, tasks or upload receipts. It uses immutable published package archives and tests an idempotent second migration pass. All other migration histories remain subject to the existing strict checks.
 
 Butter deployment and the hosted screenshot walkthrough are separate acceptance gates. Consult the PR verification section for their final outcome; local results above do not substitute for hosted proof. Browser directory installation, store approval and hosted MCP Events are outside this direct-connection expansion and are not claimed by these tests.
+
+### Full local suite and mainline integration
+
+The local full-suite attempt completed its general-server phase with 15,614 tests
+passing and two timeouts (heartbeat comment wake batching and the existing
+40,000-file Git streaming fixture); later phases did not run after that failure.
+The heartbeat case passed in isolation. The Git fixture also exceeded its
+five-minute macOS limit in isolation; its Linux CI lane passed. This is not a
+claim of a completely passing local full-suite run. At `8ac64ae0a`, all 52 Core CI
+checks succeeded (two optional checks skipped).
+
+Mainline subsequently added migration 0310. The merge preserves that migration,
+regenerates the combined schema snapshot, and moves the byte-identical, replay-safe
+MCP transfer migration to 0311. Both private-commentary and transfer log redaction
+are retained. Post-merge checks and qualification are recorded in the PR.
