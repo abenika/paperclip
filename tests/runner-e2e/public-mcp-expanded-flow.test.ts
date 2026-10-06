@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
+import { redactTransferEvidence } from "./public-mcp-transfer-evidence.js";
+import { assertSecretFree } from "./redaction.js";
 import { runExpandedMcpScenario } from "./public-mcp-expanded-flow.js";
 import { origin } from "./public-mcp-client.js";
 import { isReadOnlyMcpCall } from "./public-mcp-grading.js";
@@ -56,3 +57,15 @@ describe("expanded MCP independent evidence calibration", () => {
     expect(isReadOnlyMcpCall({ name: "paperclip_call_api", arguments: { operationId: "paperclip_read_task" } })).toBe(true);
   });
 });
+
+ it("removes authorized transfer credentials without masking unrelated credential leaks", () => {
+   const ticket = "temporary-transfer-ticket";
+   const url = `https://paperclip.example/mcp/files/upload?ticket=${ticket}`;
+   const value = { result: { url, content: [{ text: JSON.stringify({ url }) }] }, arguments: { url } };
+   const safe = JSON.stringify(redactTransferEvidence(value, [ticket, url]));
+   expect(safe).not.toContain(ticket);
+   expect(safe).not.toContain(url);
+   expect(() => assertSecretFree(safe, [ticket, url], "transfer")).not.toThrow();
+   expect(() => assertSecretFree(JSON.stringify(redactTransferEvidence({ token: "provider-secret" }, [ticket, url])), ["provider-secret"], "unexpected")).toThrow("Secret leak");
+   expect(value.result.url).toBe(url);
+ });

@@ -6,7 +6,7 @@ import { projectRoutes } from "../routes/projects.js";
 import { agentRoutes } from "../routes/agents.js";
 import { companySkillRoutes } from "../routes/company-skills.js";
 import { MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
-import { mcpFileTickets, principalPermissionGrants, heartbeatRuns } from "@paperclipai/db";
+import { mcpAttachmentUploads, mcpFileTickets, principalPermissionGrants, heartbeatRuns } from "@paperclipai/db";
 import { createHmac, createHash, randomBytes, randomUUID } from "node:crypto";
 import express, { type Request } from "express";
 import request from "supertest";
@@ -792,6 +792,55 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       await db.update(mcpFileTickets).set({ expiresAt: new Date(0) }).where(eq(mcpFileTickets.tokenHash, hashMcpSecret(url.searchParams.get("ticket")!)));
       expect((await put()).status).toBe(403);
       expect((await request(app).get("/mcp/files/download?ticket=bad")).status).toBe(403);
+    } finally { await f.cleanup(); }
+  });
+
+  it("rejects partial, oversized and mismatched uploads without creating attachments", async () => {
+    const f = await expandedFixture();
+    try {
+      const bytes = Buffer.from("exact original content");
+      const args = { taskId: f.issue.id, requestId: randomUUID(), filename: "data.txt", contentType: "text/plain", byteSize: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+      const url = new URL((await f.call("paperclip_get_upload_url", args)).url as string);
+      const app = express(); app.use(f.transfers.router);
+      const put = (body: Buffer, type = "text/plain") => request(app).put(url.pathname + url.search).set("Content-Type", type).send(body);
+      expect((await put(bytes.subarray(0, 4))).status).toBe(403);
+      expect((await put(Buffer.alloc(MAX_ATTACHMENT_BYTES + 1))).status).toBe(413);
+      expect((await put(bytes, "video/mp4")).status).toBe(403);
+      expect((await f.call("paperclip_list_deliverables", { taskId: f.issue.id })).attachments).toHaveLength(0);
+      expect((await put(bytes)).status).toBe(200);
+      expect((await f.call("paperclip_list_deliverables", { taskId: f.issue.id })).attachments).toHaveLength(1);
+    } finally { await f.cleanup(); }
+  });
+
+  it("rejects authority lost during storage and safely reclaims the orphaned object", async () => {
+    const f = await expandedFixture();
+    try {
+      const bytes = Buffer.from("orphan test");
+      const args = { taskId: f.issue.id, requestId: randomUUID(), filename: "data.txt", contentType: "text/plain", byteSize: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+      const prepared = await f.call("paperclip_get_upload_url", args);
+      const principal = await oauth.authenticate(f.tokens.access_token);
+      const originalPut = f.storage.putFile.bind(f.storage);
+      const putSpy = vi.spyOn(f.storage, "putFile").mockImplementationOnce(async input => {
+        const stored = await originalPut(input);
+        await oauth.revokeConnection(principal.grant.id, f.actor.userId!);
+        return stored;
+      });
+      const app = express(); app.use(f.transfers.router);
+      const url = new URL(prepared.url as string);
+      expect((await request(app).put(url.pathname + url.search).set("Content-Type", "text/plain").send(bytes)).status).not.toBe(200);
+      putSpy.mockRestore();
+      const [upload] = await db.select().from(mcpAttachmentUploads).where(eq(mcpAttachmentUploads.id, prepared.uploadId as string));
+      expect(upload!.attachmentId).toBeNull();
+      const orphan = await f.storage.getObject(upload!.companyId, upload!.objectKey);
+      orphan.stream.destroy();
+      await db.update(mcpAttachmentUploads).set({ expiresAt: new Date(0) }).where(eq(mcpAttachmentUploads.id, upload!.id));
+      const fresh = await expandedFixture();
+      try {
+        const clean = createPublicMcpTransfers(db, oauth, fresh.dispatch, f.storage);
+        await clean.getUploadUrl(await oauth.authenticate(fresh.tokens.access_token), { ...args, companyId: fresh.company.id, taskId: fresh.issue.id, requestId: randomUUID() });
+        expect((await db.select().from(mcpAttachmentUploads).where(eq(mcpAttachmentUploads.id, upload!.id)))[0]!.cleanedAt).not.toBeNull();
+        await expect(f.storage.getObject(upload!.companyId, upload!.objectKey)).rejects.toThrow();
+      } finally { await fresh.cleanup(); }
     } finally { await f.cleanup(); }
   });
 

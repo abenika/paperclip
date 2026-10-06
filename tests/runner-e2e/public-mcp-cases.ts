@@ -5,7 +5,7 @@ import type { RunnerTaskFixture } from "./types.js";
 export const publicMcpWorkflowInstructions = ["review-my-team", "delegate-work", "follow-up-results"].map(name => readFileSync(new URL(`../../integrations/assistant-plugins/shared/skills/${name}/SKILL.md`, import.meta.url), "utf8")).join("\n\n");
 export const publicMcpWorkflowDigest = createHash("sha256").update(publicMcpWorkflowInstructions).digest("hex");
 export const publicMcpWorkerSkillDigest = createHash("sha256").update(readFileSync(new URL("../../skills/paperclip/SKILL.md", import.meta.url))).digest("hex");
-export const publicMcpExpandedDigest = createHash("sha256").update(readFileSync(new URL("./public-mcp-expanded-flow.ts", import.meta.url))).digest("hex");
+export const publicMcpExpandedDigest = createHash("sha256").update(readFileSync(new URL("./public-mcp-expanded-flow.ts", import.meta.url))).update(readFileSync(new URL("./public-mcp-transfer-evidence.ts", import.meta.url))).digest("hex");
 export const publicMcpSetupDigest = createHash("sha256").update(readFileSync(new URL("../../packages/shared/src/mcp-setup.ts", import.meta.url))).digest("hex");
 export const publicMcpWorkerInstructions = [
   "Use the document key requested by the task in PUT /api/issues/{issueId}/documents/{key}. A report requested under key report goes to /documents/report, not /documents/plan. Read the saved document back and confirm its key before marking the task done.",
