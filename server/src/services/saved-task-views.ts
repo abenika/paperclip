@@ -30,14 +30,27 @@ function toSavedTaskView(row: SavedTaskViewRow): SavedTaskView {
   };
 }
 
-// Postgres reports the unique-name clash as 23505. Driver versions differ on
-// whether the constraint name comes back, so an unnamed 23505 on these two
-// statements is treated as the name clash it can only be.
+type PostgresError = {
+  code?: string;
+  constraint_name?: string;
+  constraint?: string;
+  cause?: unknown;
+};
+
+// Postgres reports the unique-name clash as 23505, but Drizzle wraps the driver
+// error, so the 23505 is on `cause` rather than on the error it throws. Walk the
+// chain instead of reading only the top. Driver versions also differ on whether
+// the constraint name comes back, so an unnamed 23505 on these two statements is
+// treated as the name clash it can only be.
 function isUniqueNameViolation(error: unknown): boolean {
-  const candidate = error as { code?: string; constraint_name?: string; constraint?: string } | null;
-  if (candidate?.code !== "23505") return false;
-  const constraint = candidate.constraint_name ?? candidate.constraint ?? "";
-  return constraint === "" || constraint.includes("user_saved_task_views_owner_name_uq");
+  for (let depth = 0, candidate = error as PostgresError | null; candidate && depth < 5; depth += 1) {
+    if (candidate.code === "23505") {
+      const constraint = candidate.constraint_name ?? candidate.constraint ?? "";
+      return constraint === "" || constraint.includes("user_saved_task_views_owner_name_uq");
+    }
+    candidate = (candidate.cause ?? null) as PostgresError | null;
+  }
+  return false;
 }
 
 export function savedTaskViewService(db: Db) {
@@ -127,12 +140,18 @@ export function savedTaskViewService(db: Db) {
       }
     },
 
-    async remove(owner: SavedTaskViewOwner, savedTaskViewId: string): Promise<boolean> {
-      const deleted = await db
+    // Returns the view that was deleted, so the caller can say *what* was
+    // removed in the activity entry. `null` means there was nothing to delete
+    // under this owner.
+    async remove(
+      owner: SavedTaskViewOwner,
+      savedTaskViewId: string,
+    ): Promise<SavedTaskView | null> {
+      const [row] = await db
         .delete(userSavedTaskViews)
         .where(and(eq(userSavedTaskViews.id, savedTaskViewId), ...ownerScope(owner)))
-        .returning({ id: userSavedTaskViews.id });
-      return deleted.length > 0;
+        .returning();
+      return row ? toSavedTaskView(row) : null;
     },
   };
 }

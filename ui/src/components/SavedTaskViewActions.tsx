@@ -47,6 +47,7 @@ export function SavedTaskViewActions({
   activeView,
   currentViewState,
   hasUnsavedChanges,
+  saveBlockedReason,
   onSaved,
   onDeleted,
 }: {
@@ -56,6 +57,12 @@ export function SavedTaskViewActions({
   /** The view state as it stands now, including any unsaved edits. */
   currentViewState: Record<string, unknown> | null;
   hasUnsavedChanges: boolean;
+  /**
+   * Why this list cannot be saved, if it cannot — a narrowing the view state
+   * does not hold, so a saved view would quietly show the wrong tasks. Shown
+   * to the user rather than failing silently.
+   */
+  saveBlockedReason?: string | null;
   onSaved: (view: SavedTaskView) => void;
   onDeleted: () => void;
 }) {
@@ -69,8 +76,9 @@ export function SavedTaskViewActions({
   }, [prompt]);
 
   const busy = savedViews.create.isPending || savedViews.update.isPending || savedViews.remove.isPending;
-  // Nothing to save until the collection has reported its state.
-  const canSave = currentViewState !== null && savedViews.isAvailable;
+  // Nothing to save until the collection has reported its state — and nothing
+  // worth saving when the list is narrowed by something a view cannot hold.
+  const canSave = currentViewState !== null && savedViews.isAvailable && !saveBlockedReason;
 
   async function submitName(event: FormEvent) {
     event.preventDefault();
@@ -148,6 +156,7 @@ export function SavedTaskViewActions({
           variant="outline"
           className="h-8 gap-1.5"
           disabled={!canSave || busy}
+          title={saveBlockedReason ?? undefined}
           onClick={() => setPrompt({ mode: "create", title: "Save view", initialName: "" })}
         >
           <Bookmark aria-hidden="true" className="h-3.5 w-3.5" />
@@ -161,7 +170,8 @@ export function SavedTaskViewActions({
           className="h-8 gap-1.5"
           disabled={!canSave || busy || !hasUnsavedChanges}
           onClick={() => void updateCurrent()}
-          title={hasUnsavedChanges ? `Update "${activeView.name}"` : "No unsaved changes"}
+          title={saveBlockedReason
+            ?? (hasUnsavedChanges ? `Update "${activeView.name}"` : "No unsaved changes")}
         >
           <Check aria-hidden="true" className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{hasUnsavedChanges ? "Update view" : "Saved"}</span>

@@ -9,6 +9,8 @@ const mockSavedTaskViewService = vi.hoisted(() => ({
   remove: vi.fn(),
 }));
 
+const mockLogActivity = vi.hoisted(() => vi.fn());
+
 class MockNameTakenError extends Error {}
 
 function registerModuleMocks() {
@@ -16,6 +18,9 @@ function registerModuleMocks() {
     savedTaskViewService: () => mockSavedTaskViewService,
     SavedTaskViewNameTakenError: MockNameTakenError,
   }));
+  // The routes take only `logActivity` from the services barrel; mocking it
+  // keeps this a route test rather than one that needs a database.
+  vi.doMock("../services/index.js", () => ({ logActivity: mockLogActivity }));
 }
 
 async function createApp(actor: Record<string, unknown>) {
@@ -57,6 +62,7 @@ describe("saved task view routes", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.doUnmock("../services/saved-task-views.js");
+    vi.doUnmock("../services/index.js");
     vi.doUnmock("../routes/saved-task-views.js");
     vi.doUnmock("../routes/authz.js");
     vi.doUnmock("../middleware/index.js");
@@ -65,7 +71,8 @@ describe("saved task view routes", () => {
     mockSavedTaskViewService.list.mockResolvedValue([VIEW]);
     mockSavedTaskViewService.create.mockResolvedValue(VIEW);
     mockSavedTaskViewService.update.mockResolvedValue(VIEW);
-    mockSavedTaskViewService.remove.mockResolvedValue(true);
+    mockSavedTaskViewService.remove.mockResolvedValue(VIEW);
+    mockLogActivity.mockResolvedValue(undefined);
   });
 
   it("lists the signed-in user's views for one collection", async () => {
@@ -166,9 +173,56 @@ describe("saved task view routes", () => {
     const deleted = await request(app).delete("/api/companies/company-1/saved-task-views/view-1");
     expect(deleted.status).toBe(204);
 
-    mockSavedTaskViewService.remove.mockResolvedValue(false);
+    mockSavedTaskViewService.remove.mockResolvedValue(null);
     const missing = await request(app).delete("/api/companies/company-1/saved-task-views/view-2");
     expect(missing.status).toBe(404);
+  });
+
+  it("writes an activity entry for every mutation, and none for a miss", async () => {
+    const app = await createApp(BOARD_USER);
+
+    await request(app)
+      .post("/api/companies/company-1/saved-task-views")
+      .send({ collectionKey: "paperclip:issues-view", name: "Ready to start", viewState: {} });
+    await request(app)
+      .patch("/api/companies/company-1/saved-task-views/view-1")
+      .send({ name: "Renamed" });
+    await request(app).delete("/api/companies/company-1/saved-task-views/view-1");
+
+    expect(mockLogActivity.mock.calls.map(([, input]) => input.action)).toEqual([
+      "saved_task_view.created",
+      "saved_task_view.updated",
+      "saved_task_view.deleted",
+    ]);
+    const [, created] = mockLogActivity.mock.calls[0]!;
+    expect(created).toMatchObject({
+      companyId: "company-1",
+      actorType: "user",
+      entityType: "saved_task_view",
+      entityId: "view-1",
+      details: { userId: "user-1", collectionKey: "paperclip:issues-view" },
+    });
+    // Anyone with company_scope:read can read the activity log, but a saved
+    // view is personal. So no text the user typed goes in the entry — not the
+    // definition, which can hold their search terms, and not the name.
+    expect(JSON.stringify(created.details)).not.toContain("viewState");
+    expect(JSON.stringify(created.details)).not.toContain("Ready to start");
+
+    const [, updated] = mockLogActivity.mock.calls[1]!;
+    expect(updated.details).toEqual({
+      userId: "user-1",
+      collectionKey: "paperclip:issues-view",
+      changed: ["name"],
+    });
+    expect(JSON.stringify(updated.details)).not.toContain("Renamed");
+
+    const [, removed] = mockLogActivity.mock.calls[2]!;
+    expect(removed.details).toEqual({ userId: "user-1", collectionKey: "paperclip:issues-view" });
+
+    mockLogActivity.mockClear();
+    mockSavedTaskViewService.remove.mockResolvedValue(null);
+    await request(app).delete("/api/companies/company-1/saved-task-views/gone");
+    expect(mockLogActivity).not.toHaveBeenCalled();
   });
 
   it("rejects reads for a company the board user cannot access", async () => {

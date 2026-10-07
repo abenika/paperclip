@@ -623,8 +623,11 @@ export const queryKeys = {
       ["sidebar-preferences", "project-order", companyId, userId] as const,
   },
   savedTaskViews: {
-    list: (companyId: string, collectionKey: string) =>
-      ["saved-task-views", companyId, collectionKey] as const,
+    // Keyed by user as well as company: saved views are private, and a session
+    // that ends without a page reload would otherwise leave one person's view
+    // names and search text in the cache for whoever signs in next.
+    list: (companyId: string, userId: string, collectionKey: string) =>
+      ["saved-task-views", companyId, userId, collectionKey] as const,
   },
   resourceMemberships: {
     mine: (companyId: string) =>

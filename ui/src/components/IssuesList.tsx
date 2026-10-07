@@ -209,7 +209,12 @@ function normalizeBoardColumnPageSize(value: unknown): BoardColumnPageSize {
  * complete and one sparse.
  */
 export function normalizeIssueViewState(value: unknown): IssueViewState {
-  const parsed = value && typeof value === "object" ? value as Partial<IssueViewState> : {};
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  // `search` belongs to a saved view but not to the list's view state: it lives
+  // in its own control and in the URL. Drop it so it cannot be carried in as a
+  // dead key and persisted with the rest.
+  const { search: _search, ...rest } = raw;
+  const parsed = rest as Partial<IssueViewState>;
   return {
     ...defaultViewState,
     ...parsed,
@@ -234,6 +239,26 @@ export function normalizeIssueViewState(value: unknown): IssueViewState {
     boardColdLaneMode: normalizeBoardColdLaneMode(parsed.boardColdLaneMode),
     boardColumnPageSize: normalizeBoardColumnPageSize(parsed.boardColumnPageSize),
   };
+}
+
+/**
+ * A saved view's full state. Search is what the user typed into the search box,
+ * which is as much a part of "the slice I want to come back to" as any filter,
+ * but is held outside `IssueViewState` because the list syncs it with the URL.
+ */
+export type IssueSavedViewState = IssueViewState & { search: string };
+
+/** The search text in a stored definition, or "" when it holds none. */
+export function readSavedViewSearch(definition: unknown): string {
+  const parsed = definition && typeof definition === "object"
+    ? definition as { search?: unknown }
+    : {};
+  return typeof parsed.search === "string" ? parsed.search : "";
+}
+
+/** Fills in every field of a saved view's state, search included. */
+export function normalizeIssueSavedViewState(value: unknown): IssueSavedViewState {
+  return { ...normalizeIssueViewState(value), search: readSavedViewSearch(value) };
 }
 
 function getInitialViewState(
@@ -500,10 +525,11 @@ interface IssuesListProps {
    */
   savedViewDefinition?: { key: string; definition: Record<string, unknown> };
   /**
-   * Reports the live view state so a surface outside the list — the Views
-   * control — can offer to save it. The list stays the owner; this is a read.
+   * Reports the live view state, search included, so a surface outside the
+   * list — the Views control — can offer to save it. The list stays the owner;
+   * this is a read.
    */
-  onViewStateChange?: (viewState: IssueViewState) => void;
+  onViewStateChange?: (viewState: IssueSavedViewState) => void;
   initialSearch?: string;
   searchFilters?: Omit<IssueListRequestFilters, "q" | "projectId" | "limit" | "includeRoutineExecutions">;
   searchWithinLoadedIssues?: boolean;
@@ -850,7 +876,11 @@ function StreamlinedIssuesList({
   );
   const [assigneePickerIssueId, setAssigneePickerIssueId] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
-  const [issueSearch, setIssueSearch] = useState(initialSearch ?? "");
+  // A saved view carries its own search, and opening one means opening it
+  // whole — so the view's search wins over whatever the URL arrived with.
+  const [issueSearch, setIssueSearch] = useState(() => (savedViewDefinition
+    ? readSavedViewSearch(savedViewDefinition.definition)
+    : initialSearch ?? ""));
   const [renderedIssueRowLimit, setRenderedIssueRowLimit] = useState(INITIAL_ISSUE_ROW_RENDER_LIMIT);
   const [visibleIssueColumns, setVisibleIssueColumns] = useState<InboxIssueColumn[]>(initialPreferences.columns);
   const renderedIssueIdsRef = useRef("");
@@ -858,9 +888,18 @@ function StreamlinedIssuesList({
   const deferredIssueSearch = useDeferredValue(issueSearch);
   const normalizedIssueSearch = deferredIssueSearch.trim().toLowerCase();
 
+  // Follow `initialSearch` when the caller changes it, but not on the first
+  // render: the initial value is already in state, and re-applying it there
+  // would overwrite the search a saved view opened with.
+  const prevInitialSearch = useRef(initialSearch);
   useEffect(() => {
+    if (prevInitialSearch.current === initialSearch) return;
+    prevInitialSearch.current = initialSearch;
     setIssueSearch(initialSearch ?? "");
   }, [initialSearch]);
+
+  const onSearchChangeRef = useRef(onSearchChange);
+  onSearchChangeRef.current = onSearchChange;
 
   // Reload view state whenever the persisted context changes.
   const prevViewStateContextKey = useRef(
@@ -898,13 +937,34 @@ function StreamlinedIssuesList({
     preferenceLocation.legacyColumnsStorageKey,
   ]);
 
-  // Report the live view state outward. Held in a ref so a caller that passes
-  // a fresh closure each render does not turn this into a render loop.
+  // Search travels with a saved view: applied when one is opened, cleared when
+  // one is left, and reported to the surface that owns `?q=` so the URL and the
+  // box agree. This runs on the first render too — a view opened straight from
+  // a cached definition must still put its search in the URL, or leaving it
+  // would have no `q` to drop and the search would outlive the view.
+  const prevSavedViewKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevSavedViewKey.current === savedViewKey) return;
+    const firstRender = prevSavedViewKey.current === null;
+    prevSavedViewKey.current = savedViewKey;
+    // A list that has never had a saved view has no search of its own to apply.
+    if (firstRender && savedViewKey === "") return;
+    const nextSearch = savedViewDefinition
+      ? readSavedViewSearch(savedViewDefinition.definition)
+      : "";
+    setIssueSearch(nextSearch);
+    onSearchChangeRef.current?.(nextSearch);
+  }, [savedViewKey, savedViewDefinition]);
+
+  // Report the live view state outward, search included — what the Views
+  // control offers to save has to be the whole slice the user is looking at.
+  // Held in a ref so a caller that passes a fresh closure each render does not
+  // turn this into a render loop.
   const onViewStateChangeRef = useRef(onViewStateChange);
   onViewStateChangeRef.current = onViewStateChange;
   useEffect(() => {
-    onViewStateChangeRef.current?.(viewState);
-  }, [viewState]);
+    onViewStateChangeRef.current?.({ ...viewState, search: issueSearch });
+  }, [viewState, issueSearch]);
 
   const updateView = useCallback((patch: Partial<IssueViewState>) => {
     setViewState((prev) => {

@@ -7,9 +7,12 @@ import {
   applySavedViewDefinition,
   findSavedTaskView,
   isSavedTaskViewKey,
+  missingStarterTaskViews,
   parseSavedTaskViewId,
   savedTaskViewKey,
+  savedViewDefinitionRevision,
   savedViewDefinitionsEqual,
+  shouldOfferStarterTaskViews,
   suggestSavedViewCopyName,
   toSavedViewDefinition,
 } from "./saved-task-views";
@@ -189,5 +192,43 @@ describe("starter views", () => {
     const done = STARTER_SAVED_TASK_VIEWS.find((s) => s.name === "Done")!;
     expect(applyIssueFilters(issues, normalizeIssueFilterState(done.definition)).map((i) => i.id))
       .toEqual(["3"]);
+  });
+
+  it("offers the missing starters again after a run that stopped half way", () => {
+    const [first, second] = STARTER_SAVED_TASK_VIEWS;
+    const partial = [view("a", first!.name), view("b", second!.name)];
+
+    expect(missingStarterTaskViews(partial).map((s) => s.name))
+      .toEqual(STARTER_SAVED_TASK_VIEWS.slice(2).map((s) => s.name));
+    expect(shouldOfferStarterTaskViews(partial)).toBe(true);
+
+    // Empty is the first-run offer; a complete set is not offered again.
+    expect(shouldOfferStarterTaskViews([])).toBe(true);
+    const complete = STARTER_SAVED_TASK_VIEWS.map((s, i) => view(`s${i}`, s.name));
+    expect(missingStarterTaskViews(complete)).toEqual([]);
+    expect(shouldOfferStarterTaskViews(complete)).toBe(false);
+
+    // Only the user's own views, no starters: not a half-finished run.
+    expect(shouldOfferStarterTaskViews([view("x", "My week")])).toBe(false);
+  });
+});
+
+describe("savedViewDefinitionRevision", () => {
+  it("ignores a rename and changes when the definition changes", () => {
+    const definition = { statuses: ["todo", "backlog"], sortField: "priority" };
+    // A rename never touches the definition, so the revision must not move —
+    // this is what stops a rename from discarding unsaved filter edits.
+    expect(savedViewDefinitionRevision(definition))
+      .toBe(savedViewDefinitionRevision({ ...definition }));
+    expect(savedViewDefinitionRevision({ ...definition, statuses: ["backlog", "todo"] }))
+      .toBe(savedViewDefinitionRevision(definition));
+    expect(savedViewDefinitionRevision({ ...definition, statuses: ["todo"] }))
+      .not.toBe(savedViewDefinitionRevision(definition));
+  });
+
+  it("ignores the ephemeral keys, so folding a group does not re-apply the view", () => {
+    const definition = { statuses: ["todo"] };
+    expect(savedViewDefinitionRevision({ ...definition, collapsedGroups: ["todo"] }))
+      .toBe(savedViewDefinitionRevision(definition));
   });
 });

@@ -105,6 +105,23 @@ export function savedViewDefinitionsEqual(
 }
 
 /**
+ * A short stand-in for a definition's *content*, so a surface can tell whether
+ * the stored view has actually changed shape.
+ *
+ * Deliberately not `updatedAt`: renaming a view bumps that timestamp without
+ * touching a single filter, and a consumer keyed on the timestamp would throw
+ * away filter edits the user had not saved yet. Two definitions that
+ * `savedViewDefinitionsEqual` calls equal share a revision.
+ */
+export function savedViewDefinitionRevision(definition: Record<string, unknown>): string {
+  const canonical: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(toSavedViewDefinition(definition))) {
+    canonical[key] = Array.isArray(value) ? value.map(stableStringify).sort() : value;
+  }
+  return stableStringify(canonical);
+}
+
+/**
  * Builds the view state to open a saved view with. The ephemeral keys carry
  * over from the current state, so switching views does not re-expand
  * everything the user folded; the collection's own normalizer decides what the
@@ -147,8 +164,8 @@ export type StarterTaskView = {
 };
 
 /**
- * Offered once, to a collection that has no saved views yet, behind an
- * explicit "Add starter views". They are created as ordinary saved views, so
+ * Offered to a collection that has no saved views yet, behind an explicit
+ * "Add starter views". They are created as ordinary saved views, so
  * they can be renamed, re-filtered, reordered, or deleted like any other, and
  * declining leaves no rows behind.
  *
@@ -245,3 +262,37 @@ export const STARTER_SAVED_TASK_VIEWS: readonly StarterTaskView[] = [
     },
   },
 ];
+
+function savedViewNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase();
+}
+
+/**
+ * The starter views this list does not already hold, in their listed order.
+ *
+ * Creating the set is one write per view, so a run can stop part way. Both the
+ * creating hook and the menu that offers the action work from this, so a
+ * second attempt creates exactly the views the first one missed.
+ */
+export function missingStarterTaskViews(
+  views: readonly SavedTaskView[] | undefined,
+): readonly StarterTaskView[] {
+  const taken = new Set((views ?? []).map((view) => savedViewNameKey(view.name)));
+  return STARTER_SAVED_TASK_VIEWS.filter((starter) => !taken.has(savedViewNameKey(starter.name)));
+}
+
+/**
+ * Whether the Views menu should offer "Add starter views".
+ *
+ * Two cases: the collection is empty, which is the first-run offer; or it
+ * holds some starters but not all, which is how a half-finished run looks from
+ * the outside. Without the second case a user whose set stopped at three of
+ * seven has no way to ask for the rest.
+ */
+export function shouldOfferStarterTaskViews(
+  views: readonly SavedTaskView[] | undefined,
+): boolean {
+  const missing = missingStarterTaskViews(views);
+  if (missing.length === 0) return false;
+  return (views?.length ?? 0) === 0 || missing.length < STARTER_SAVED_TASK_VIEWS.length;
+}
