@@ -26,13 +26,21 @@ import { Inbox } from "./Inbox";
 import {
   ORGANIZATION_SCOPED_PARAMS,
   TASK_VIEW_PARAM,
+  isTaskViewKey,
   loadLastTaskView,
-  normalizeTaskViewKey,
   resolveInitialTaskView,
   saveLastTaskView,
   taskView,
-  type TaskViewKey,
+  type TaskSurfaceViewKey,
 } from "../lib/task-views";
+import {
+  findSavedTaskView,
+  savedTaskViewKey,
+  savedViewDefinitionsEqual,
+} from "../lib/saved-task-views";
+import { useSavedTaskViews } from "../hooks/useSavedTaskViews";
+import { SavedTaskViewActions } from "../components/SavedTaskViewActions";
+import { normalizeIssueViewState, type IssueViewState } from "../components/IssuesList";
 
 const WORKSPACE_FILTER_ISSUE_LIMIT = 1000;
 const ISSUES_PAGE_SIZE = 100;
@@ -97,12 +105,16 @@ export function Issues() {
   return streamlinedUiEnabled && combinedInboxTasksEnabled ? <StreamlinedTasks /> : <OrganizationIssues />;
 }
 
+/** The task collection saved views on the Tasks page belong to. */
+const TASKS_COLLECTION_KEY = "paperclip:issues-view";
+
 function StreamlinedTasks() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialogActions();
   const inboxBadge = useInboxBadge(selectedCompanyId);
+  const savedViews = useSavedTaskViews(selectedCompanyId, TASKS_COLLECTION_KEY);
 
   const requestedView = searchParams.get(TASK_VIEW_PARAM);
   const hasOrganizationScopedParam = ORGANIZATION_SCOPED_PARAMS.some(
@@ -110,15 +122,22 @@ function StreamlinedTasks() {
   );
   // Read the stored view once per mount so a later write can't yank the view
   // out from under the user mid-session.
-  const [lastUsedView] = useState<TaskViewKey>(() => loadLastTaskView());
-  const view = resolveInitialTaskView(requestedView, hasOrganizationScopedParam, lastUsedView);
-  const definition = taskView(view);
+  const [lastUsedView] = useState<TaskSurfaceViewKey>(() => loadLastTaskView());
+  const resolved = resolveInitialTaskView(requestedView, hasOrganizationScopedParam, lastUsedView);
+  const activeSavedView = findSavedTaskView(savedViews.views, resolved);
+  // A `saved:` key that no longer resolves — deleted here or on another device,
+  // or a shared link to someone else's view — falls back to All tasks once the
+  // list has loaded, rather than showing an empty page.
+  const view: TaskSurfaceViewKey = isTaskViewKey(resolved)
+    ? resolved
+    : (activeSavedView ? resolved : (savedViews.isLoading ? resolved : "all"));
+  const builtInView = isTaskViewKey(view) ? taskView(view) : null;
 
   // Make the resolved view addressable without dropping the params that
   // brought the user here — and correct a requested view that was overridden
   // (an inbox view carrying an organization filter opens All tasks).
   useEffect(() => {
-    if (normalizeTaskViewKey(requestedView) === view) return;
+    if (requestedView === view) return;
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set(TASK_VIEW_PARAM, view);
@@ -126,25 +145,61 @@ function StreamlinedTasks() {
     }, { replace: true });
   }, [requestedView, view, setSearchParams]);
 
-  const selectView = useCallback((next: TaskViewKey) => {
+  const selectView = useCallback((next: TaskSurfaceViewKey) => {
     saveLastTaskView(next);
     // A view switch starts clean: the previous view's search and filters are
     // its own, not the new view's.
-    navigate(`/issues?${TASK_VIEW_PARAM}=${next}`);
+    navigate(`/issues?${TASK_VIEW_PARAM}=${encodeURIComponent(next)}`);
   }, [navigate]);
 
-  const viewsMenu = (
-    <TaskViewsMenu value={view} onChange={selectView} badgeCount={inboxBadge.inbox} />
+  // The task list owns its view state; this is the copy the Views control
+  // reads to offer Save and to tell whether anything is unsaved.
+  const [liveViewState, setLiveViewState] = useState<IssueViewState | null>(null);
+  // Compare like with like: the stored definition is normalized the same way
+  // the list normalizes it on open, so a definition written by an older build
+  // does not read as an unsaved edit.
+  const hasUnsavedChanges = activeSavedView !== null
+    && liveViewState !== null
+    && !savedViewDefinitionsEqual(
+      liveViewState,
+      normalizeIssueViewState(activeSavedView.viewState),
+    );
+
+  const viewsControls = (
+    <div className="flex min-w-0 items-center gap-1">
+      <TaskViewsMenu
+        value={view}
+        onChange={selectView}
+        badgeCount={inboxBadge.inbox}
+        savedViews={savedViews.views}
+        onAddStarterViews={savedViews.views.length === 0
+          ? () => void savedViews.addStarterViews.mutateAsync().catch(() => {})
+          : undefined}
+        addStarterViewsPending={savedViews.addStarterViews.isPending}
+      />
+      {/* Saving applies to the task list's filters, so the actions appear on
+          the organization surface only — an inbox view has none to save. */}
+      {builtInView?.surface === "inbox" ? null : (
+        <SavedTaskViewActions
+          savedViews={savedViews}
+          activeView={activeSavedView}
+          currentViewState={liveViewState}
+          hasUnsavedChanges={hasUnsavedChanges}
+          onSaved={(saved) => selectView(savedTaskViewKey(saved.id))}
+          onDeleted={() => selectView("all")}
+        />
+      )}
+    </div>
   );
 
-  if (definition.surface === "inbox") {
+  if (builtInView?.surface === "inbox") {
     return (
       <Inbox
-        tab={definition.inboxTab}
+        tab={builtInView.inboxTab}
         surfaceLabel="Tasks"
         toolbarContext={(
           <div className="flex min-w-0 items-center gap-2">
-            {viewsMenu}
+            {viewsControls}
             <Button size="sm" variant="outline" aria-label="New Task" onClick={() => openNewIssue()}>
               <Plus className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">New Task</span>
@@ -155,13 +210,34 @@ function StreamlinedTasks() {
     );
   }
 
-  return <OrganizationIssues toolbarContext={viewsMenu} initialStatuses={definition.statuses} />;
+  return (
+    <OrganizationIssues
+      toolbarContext={viewsControls}
+      initialStatuses={builtInView?.statuses}
+      savedViewDefinition={activeSavedView
+        ? {
+            // The revision is part of the key so "Update view" re-applies, while
+            // simply re-rendering the same view does not stomp on live edits.
+            key: `${activeSavedView.id}@${new Date(activeSavedView.updatedAt).getTime()}`,
+            definition: activeSavedView.viewState,
+          }
+        : undefined}
+      onViewStateChange={setLiveViewState}
+    />
+  );
 }
 
 function OrganizationIssues({
   toolbarContext,
   initialStatuses,
-}: { toolbarContext?: ReactNode; initialStatuses?: string[] } = {}) {
+  savedViewDefinition,
+  onViewStateChange,
+}: {
+  toolbarContext?: ReactNode;
+  initialStatuses?: string[];
+  savedViewDefinition?: { key: string; definition: Record<string, unknown> };
+  onViewStateChange?: (viewState: IssueViewState) => void;
+} = {}) {
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const issuesPresentation = resolveIssuesPresentation(streamlinedUiEnabled);
   const { selectedCompanyId } = useCompany();
@@ -320,6 +396,8 @@ function OrganizationIssues({
       initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
       initialWorkspaces={initialWorkspaces.length > 0 ? initialWorkspaces : undefined}
       initialStatuses={initialStatuses}
+      savedViewDefinition={savedViewDefinition}
+      onViewStateChange={onViewStateChange}
       toolbarContext={toolbarContext}
       initialSearch={syncedSearch}
       onSearchChange={handleSearchChange}

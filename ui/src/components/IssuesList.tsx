@@ -27,6 +27,7 @@ import {
   type SubIssueProgressSummary,
 } from "../lib/issue-detail-subissues";
 import { groupBy } from "../lib/groupBy";
+import { applySavedViewDefinition } from "../lib/saved-task-views";
 import {
   applyIssueFilters,
   countActiveIssueFilters,
@@ -201,7 +202,13 @@ function normalizeBoardColumnPageSize(value: unknown): BoardColumnPageSize {
     : KANBAN_COLUMN_DEFAULT_PAGE_SIZE;
 }
 
-function normalizeIssueViewState(value: unknown): IssueViewState {
+/**
+ * Fills in every view-state field from a partial or older stored value. The
+ * Views control normalizes a saved view's stored definition through this, so
+ * "has this view been edited?" compares two complete states rather than one
+ * complete and one sparse.
+ */
+export function normalizeIssueViewState(value: unknown): IssueViewState {
   const parsed = value && typeof value === "object" ? value as Partial<IssueViewState> : {};
   return {
     ...defaultViewState,
@@ -251,6 +258,7 @@ function getInitialWorkspaceViewState(
   initialWorkspaces?: string[],
   defaultSortField?: IssueSortField,
   initialStatuses?: string[],
+  savedViewDefinition?: Record<string, unknown>,
 ): IssueViewState {
   const initial = getInitialViewState(stored, initialAssignees, defaultSortField);
   const scoped = initialWorkspaces
@@ -259,7 +267,12 @@ function getInitialWorkspaceViewState(
   // A status preset (Active / Backlog / Done, and All as the empty set) is the
   // view's definition, so it wins over whatever the last session persisted.
   // `undefined` means "no preset" and leaves the stored statuses alone.
-  return initialStatuses ? { ...scoped, statuses: initialStatuses } : scoped;
+  const preset = initialStatuses ? { ...scoped, statuses: initialStatuses } : scoped;
+  // A saved view is a fuller definition than a status preset, so it is applied
+  // last and wins — it is exactly what the user asked to open.
+  return savedViewDefinition
+    ? applySavedViewDefinition(preset, savedViewDefinition, normalizeIssueViewState)
+    : preset;
 }
 
 function getIssueColumnsStorageKey(key: string): string {
@@ -479,6 +492,18 @@ interface IssuesListProps {
    * Used by the Tasks view presets (PAP-670).
    */
   initialStatuses?: string[];
+  /**
+   * A saved view's stored definition, applied on entry and whenever `key`
+   * changes, overriding the persisted view state. `key` is the saved view's
+   * identity plus its revision, so re-opening the same view does not re-apply
+   * over edits the user is making, but updating it does.
+   */
+  savedViewDefinition?: { key: string; definition: Record<string, unknown> };
+  /**
+   * Reports the live view state so a surface outside the list — the Views
+   * control — can offer to save it. The list stays the owner; this is a read.
+   */
+  onViewStateChange?: (viewState: IssueViewState) => void;
   initialSearch?: string;
   searchFilters?: Omit<IssueListRequestFilters, "q" | "projectId" | "limit" | "includeRoutineExecutions">;
   searchWithinLoadedIssues?: boolean;
@@ -724,6 +749,8 @@ function StreamlinedIssuesList({
   initialAssignees,
   initialWorkspaces,
   initialStatuses,
+  savedViewDefinition,
+  onViewStateChange,
   initialSearch,
   searchFilters,
   searchWithinLoadedIssues = false,
@@ -804,6 +831,7 @@ function StreamlinedIssuesList({
   const initialAssigneesKey = initialAssignees?.join("|") ?? "";
   const initialWorkspacesKey = initialWorkspaces?.join("|") ?? "";
   const initialStatusesKey = initialStatuses ? `set:${initialStatuses.join("|")}` : "";
+  const savedViewKey = savedViewDefinition?.key ?? "";
   const initialPreferencesRef = useRef<ReturnType<typeof loadIssueCollectionPreferences> | null>(null);
   if (initialPreferencesRef.current === null) {
     initialPreferencesRef.current = loadIssueCollectionPreferences(preferenceLocation);
@@ -817,6 +845,7 @@ function StreamlinedIssuesList({
       initialWorkspaces,
       defaultSortField,
       initialStatuses,
+      savedViewDefinition?.definition,
     ),
   );
   const [assigneePickerIssueId, setAssigneePickerIssueId] = useState<string | null>(null);
@@ -835,10 +864,10 @@ function StreamlinedIssuesList({
 
   // Reload view state whenever the persisted context changes.
   const prevViewStateContextKey = useRef(
-    `${scopedKey}::${initialAssigneesKey}::${initialWorkspacesKey}::${initialStatusesKey}`,
+    `${scopedKey}::${initialAssigneesKey}::${initialWorkspacesKey}::${initialStatusesKey}::${savedViewKey}`,
   );
   useEffect(() => {
-    const nextContextKey = `${scopedKey}::${initialAssigneesKey}::${initialWorkspacesKey}::${initialStatusesKey}`;
+    const nextContextKey = `${scopedKey}::${initialAssigneesKey}::${initialWorkspacesKey}::${initialStatusesKey}::${savedViewKey}`;
     if (prevViewStateContextKey.current !== nextContextKey) {
       prevViewStateContextKey.current = nextContextKey;
       const preferences = loadIssueCollectionPreferences(preferenceLocation);
@@ -848,6 +877,7 @@ function StreamlinedIssuesList({
         initialWorkspaces,
         defaultSortField,
         initialStatuses,
+        savedViewDefinition?.definition,
       ));
       setVisibleIssueColumns(preferences.columns);
     }
@@ -859,12 +889,22 @@ function StreamlinedIssuesList({
     initialWorkspacesKey,
     initialStatuses,
     initialStatusesKey,
+    savedViewDefinition,
+    savedViewKey,
     defaultSortField,
     preferenceLocation.companyId,
     preferenceLocation.collectionKey,
     preferenceLocation.legacyViewStorageKey,
     preferenceLocation.legacyColumnsStorageKey,
   ]);
+
+  // Report the live view state outward. Held in a ref so a caller that passes
+  // a fresh closure each render does not turn this into a render loop.
+  const onViewStateChangeRef = useRef(onViewStateChange);
+  onViewStateChangeRef.current = onViewStateChange;
+  useEffect(() => {
+    onViewStateChangeRef.current?.(viewState);
+  }, [viewState]);
 
   const updateView = useCallback((patch: Partial<IssueViewState>) => {
     setViewState((prev) => {
